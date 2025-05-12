@@ -126,11 +126,14 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
   const poles = new Map<string, KatapultPole>();
   const duplicates = new Set<string>();
   
-  excelData.forEach(row => {
-    if (!row.scid || !row.PL_number) return;
+  // Filter data to only include rows where node_type is "pole"
+  const poleData = excelData.filter(row => row.node_type === "pole");
+  
+  poleData.forEach(row => {
+    if (!row.scid || !row.DLOC_number) return;
     
-    // Create pole ID from scid and PL_number
-    const poleId = `${row.scid}-${row.PL_number}`;
+    // Create pole ID from scid and DLOC_number
+    const poleId = `${row.scid}-${row.DLOC_number}`;
     const normalizedPoleId = normalizePoleId(poleId);
     
     // Check for duplicates
@@ -146,7 +149,7 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       existingLoading: parseFloat(row.existing_capacity_) || 0,
       finalLoading: parseFloat(row.final_passing_capacity_) || 0,
       scid: row.scid.toString(),
-      plNumber: row.PL_number.toString()
+      plNumber: row.DLOC_number.toString()
     });
   });
   
@@ -176,6 +179,10 @@ const extractPoleSpecification = (design: any): string => {
   
   // First try the clientItemAlias which often contains the formatted spec directly (e.g. "55-2")
   if (pole.clientItemAlias) {
+    // If we have both clientItemAlias and species, combine them
+    if (pole.clientItem && pole.clientItem.species) {
+      return `${pole.clientItemAlias} ${pole.clientItem.species}`;
+    }
     return pole.clientItemAlias;
   }
   
@@ -250,7 +257,7 @@ const extractSpidaPoles = (jsonData: any): Map<string, SpidaPole> => {
               poleSpec = extractPoleSpecification(measuredDesign);
             }
             
-            // Extract existing loading
+            // Extract existing loading from Measured Design
             if (measuredDesign && measuredDesign.analysis && Array.isArray(measuredDesign.analysis)) {
               const analysis = measuredDesign.analysis.find((a: any) => a.id === "Light - Grade C") || 
                               (measuredDesign.analysis.length > 0 ? measuredDesign.analysis[0] : null);
@@ -266,7 +273,7 @@ const extractSpidaPoles = (jsonData: any): Map<string, SpidaPole> => {
               }
             }
             
-            // Extract final loading
+            // Extract final loading from Recommended Design
             if (recommendedDesign && recommendedDesign.analysis && Array.isArray(recommendedDesign.analysis)) {
               const analysis = recommendedDesign.analysis.find((a: any) => a.id === "Light - Grade C") || 
                               (recommendedDesign.analysis.length > 0 ? recommendedDesign.analysis[0] : null);
