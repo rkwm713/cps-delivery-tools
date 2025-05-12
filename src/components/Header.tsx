@@ -1,5 +1,6 @@
 
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 export const Header = () => {
   return (
@@ -21,7 +22,13 @@ export const Header = () => {
             Pole Spec Comparison Tool
           </h1>
         </div>
-        <div>
+        <div className="flex space-x-2">
+          <Button variant="ghost" className="text-[#0A3251] hover:bg-gray-100">
+            <Link to="/" className="flex items-center">Home</Link>
+          </Button>
+          <Button variant="ghost" className="text-[#0A3251] hover:bg-gray-100">
+            <Link to="/cps-tool" className="flex items-center">Cover Sheet Tool</Link>
+          </Button>
           <Button variant="outline" className="mr-2">
             <a 
               href="https://github.com" 
