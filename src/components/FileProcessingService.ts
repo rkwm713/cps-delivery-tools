@@ -1,3 +1,4 @@
+
 import type { ProcessedRow } from "@/pages/Index";
 import * as XLSX from 'xlsx';
 
@@ -18,13 +19,16 @@ export const processFiles = async (
   spidaFile: File
 ): Promise<{rows: ProcessedRow[], verification: VerificationResult}> => {
   try {
+    console.log("Starting file processing...");
+    
     // Read the files
     const katapultData = await readExcelFile(katapultFile);
     const spidaData = await readJsonFile(spidaFile);
     
     // Log sample data to debug field names and formats
     if (katapultData.length > 0) {
-      console.log("Katapult sample row:", katapultData[0]);
+      console.log("Katapult first row:", katapultData[0]);
+      console.log("Available Katapult headers:", Object.keys(katapultData[0]).join(", "));
     }
     
     // Extract pole information from both sources
@@ -34,6 +38,17 @@ export const processFiles = async (
     console.log("Katapult poles extracted:", katapultPoles.size);
     console.log("SPIDA poles extracted:", spidaPoles.size);
     
+    // Sample first few poles from each source
+    if (katapultPoles.size > 0) {
+      const sampleKatapult = Array.from(katapultPoles.values()).slice(0, 3);
+      console.log("Sample Katapult poles:", sampleKatapult);
+    }
+    
+    if (spidaPoles.size > 0) {
+      const sampleSpida = Array.from(spidaPoles.values()).slice(0, 3);
+      console.log("Sample SPIDA poles:", sampleSpida);
+    }
+    
     // Verify pole numbers between the two sources
     const verification = verifyPoleNumbers(katapultPoles, spidaPoles);
     
@@ -42,7 +57,7 @@ export const processFiles = async (
     
     // Log a few sample results for debugging
     if (comparisonData.length > 0) {
-      console.log("Sample comparison result:", comparisonData[0]);
+      console.log("Sample comparison results:", comparisonData.slice(0, 3));
     }
     
     return {
@@ -76,9 +91,27 @@ const readExcelFile = async (file: File): Promise<any[]> => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
+        // Get all headers from the first row
+        const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+        const headers: string[] = [];
+        
+        // Extract all column headers for logging
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cell = worksheet[XLSX.utils.encode_cell({ r: 1, c: C })]; // Row 2 (index 1)
+          if (cell && cell.v) headers.push(String(cell.v));
+        }
+        
+        console.log("All Excel headers found:", headers);
+        
         // Parse sheet to JSON (header is on row 2)
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 1 });
-        console.log("Excel headers:", Object.keys(jsonData[0] || {}));
+        console.log(`Excel data rows found: ${jsonData.length}`);
+        
+        if (jsonData.length > 0) {
+          console.log("First row raw data:", JSON.stringify(jsonData[0]));
+          console.log("Excel headers:", Object.keys(jsonData[0] || {}));
+        }
+        
         resolve(jsonData);
       } catch (err) {
         reject(new Error(`Error parsing Excel file: ${err}`));
@@ -108,6 +141,7 @@ const readJsonFile = async (file: File): Promise<any> => {
         }
         
         const jsonData = JSON.parse(e.target.result as string);
+        console.log("JSON file successfully parsed");
         resolve(jsonData);
       } catch (err) {
         reject(new Error(`Error parsing JSON file: ${err}`));
@@ -137,14 +171,18 @@ interface KatapultPole {
 
 /**
  * Case-insensitive object property access with fallback options
+ * Enhanced with better logging and more robust property matching
  */
-const getFieldValue = (obj: any, fieldOptions: string[]): any => {
+const getFieldValue = (obj: any, fieldOptions: string[], debugLabel?: string): any => {
   if (!obj) return undefined;
   
   // Try each field option in order
   for (const field of fieldOptions) {
     // Try exact match
     if (obj[field] !== undefined) {
+      if (debugLabel) {
+        console.log(`Found ${debugLabel} using exact match for field '${field}': ${obj[field]}`);
+      }
       return obj[field];
     }
     
@@ -152,8 +190,29 @@ const getFieldValue = (obj: any, fieldOptions: string[]): any => {
     const lowerField = field.toLowerCase();
     const match = Object.keys(obj).find(key => key.toLowerCase() === lowerField);
     if (match && obj[match] !== undefined) {
+      if (debugLabel) {
+        console.log(`Found ${debugLabel} using case-insensitive match for field '${field}' -> '${match}': ${obj[match]}`);
+      }
       return obj[match];
     }
+    
+    // Try fuzzy matches - looking for fields that contain the key term
+    const fuzzyMatches = Object.keys(obj).filter(key => 
+      key.toLowerCase().includes(lowerField) || 
+      lowerField.includes(key.toLowerCase())
+    );
+    
+    if (fuzzyMatches.length > 0) {
+      const fuzzyMatch = fuzzyMatches[0]; // Take the first fuzzy match
+      if (debugLabel) {
+        console.log(`Found ${debugLabel} using fuzzy match for '${field}' -> '${fuzzyMatch}': ${obj[fuzzyMatch]}`);
+      }
+      return obj[fuzzyMatch];
+    }
+  }
+  
+  if (debugLabel) {
+    console.log(`Could not find ${debugLabel} using any of these fields: ${fieldOptions.join(', ')}`);
   }
   
   return undefined;
@@ -163,26 +222,87 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
   const poles = new Map<string, KatapultPole>();
   const duplicates = new Set<string>();
   
-  // Filter data to only include rows where node_type is "pole"
-  const poleData = excelData.filter(row => {
-    const nodeType = getFieldValue(row, ['node_type', 'Node Type', 'NODE_TYPE']);
-    return nodeType === "pole";
-  });
+  console.log(`Starting Katapult pole extraction. Total rows: ${excelData.length}`);
   
-  console.log(`Found ${poleData.length} poles in Katapult data`);
+  if (excelData.length === 0) {
+    console.error("No data found in Katapult Excel file");
+    return poles;
+  }
   
-  poleData.forEach((row, index) => {
-    // Get SCID (required field)
-    const scid = getFieldValue(row, ['scid', 'SCID']);
-    if (!scid) {
-      console.log(`Row ${index} skipped: missing SCID`);
-      return;
+  // Log all available column headers for debugging
+  if (excelData.length > 0) {
+    console.log("Available columns in Katapult data:", Object.keys(excelData[0]).join(", "));
+  }
+  
+  // First, try to find the node_type column to filter for poles
+  const possibleNodeTypeColumns = ['node_type', 'Node Type', 'NODE_TYPE', 'nodetype', 'Type', 'type', 'pole_type', 'Pole Type'];
+  let nodeTypeColumn = '';
+  
+  // Find the actual node type column name
+  for (const colName of possibleNodeTypeColumns) {
+    if (excelData[0][colName] !== undefined) {
+      nodeTypeColumn = colName;
+      console.log(`Found node type column: '${nodeTypeColumn}'`);
+      break;
     }
     
-    // Find the actual pole ID using fallback logic
-    const poleTag = getFieldValue(row, ['pole_tag', 'Pole Tag', 'POLE_TAG']);
-    const dlocNumber = getFieldValue(row, ['DLOC_number', 'dloc_number', 'Dloc Number']);
-    const plNumber = getFieldValue(row, ['PL_number', 'pl_number', 'Pl Number']);
+    // Try case-insensitive match
+    const match = Object.keys(excelData[0]).find(key => key.toLowerCase() === colName.toLowerCase());
+    if (match) {
+      nodeTypeColumn = match;
+      console.log(`Found node type column (case-insensitive): '${nodeTypeColumn}'`);
+      break;
+    }
+  }
+  
+  if (!nodeTypeColumn) {
+    console.warn("Could not find node_type column. Trying to process all rows.");
+    // If we can't find a node type column, we'll still try to process all rows
+  }
+  
+  // Filter data to only include rows where node_type is "pole"
+  const poleData = nodeTypeColumn ? 
+    excelData.filter(row => {
+      const nodeType = row[nodeTypeColumn];
+      const isPole = nodeType && nodeType.toString().toLowerCase() === "pole";
+      return isPole;
+    }) : 
+    excelData; // If we can't filter by node_type, use all rows
+  
+  console.log(`Found ${poleData.length} potential poles in Katapult data after filtering`);
+  
+  // Sample the first row to understand the data structure
+  if (poleData.length > 0) {
+    console.log("Sample Katapult pole row:", poleData[0]);
+  }
+  
+  // Process each potential pole
+  poleData.forEach((row, index) => {
+    // Get SCID (try multiple possible column names)
+    const scidOptions = ['scid', 'SCID', 'sc_id', 'SC_ID', 'ScId', 'sc id', 'SC ID', 'id', 'ID'];
+    const scid = getFieldValue(row, scidOptions, 'SCID');
+    
+    // Try to find pole identifier using multiple field name patterns
+    const poleTagOptions = [
+      'pole_tag', 'Pole Tag', 'POLE_TAG', 'poletag', 'PoleTag', 'pole tag', 'Pole tag', 
+      'structure_id', 'Structure ID', 'structure id'
+    ];
+    
+    const dlocOptions = [
+      'DLOC_number', 'dloc_number', 'Dloc Number', 'dloc', 'DLOC', 'dloc number', 'DLOC number'
+    ];
+    
+    const plNumberOptions = [
+      'PL_number', 'pl_number', 'Pl Number', 'pl', 'PL', 'plnumber', 'PLNumber', 'pl number', 'PL number'
+    ];
+    
+    // Try to find pole identifiers
+    const poleTag = getFieldValue(row, poleTagOptions, 'pole tag');
+    const dlocNumber = getFieldValue(row, dlocOptions, 'DLOC number');
+    const plNumber = getFieldValue(row, plNumberOptions, 'PL number');
+    
+    // Debug which identifiers were found
+    console.log(`Row ${index} identifiers - SCID: ${scid}, Pole Tag: ${poleTag}, DLOC: ${dlocNumber}, PL: ${plNumber}`);
     
     let poleIdValue = poleTag;
     if (!poleIdValue && dlocNumber) {
@@ -192,15 +312,36 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       poleIdValue = plNumber;
     }
     
-    // Skip if we couldn't find any pole ID
-    if (!poleIdValue) {
-      console.log(`Row ${index} skipped: no valid pole ID found`);
+    // If we couldn't find any identifier but have an SCID, use a fallback approach
+    if (!poleIdValue && scid) {
+      // Loop through all fields looking for anything that might be a pole identifier
+      for (const key of Object.keys(row)) {
+        const value = row[key];
+        if (typeof value === 'string' || typeof value === 'number') {
+          // Skip the SCID field we already checked and fields with very long values
+          if (key.toLowerCase().includes('scid') || String(value).length > 20) continue;
+          
+          // If this looks like a potential ID field, use it
+          if (value && String(value).length > 0 && String(value).length <= 10) {
+            console.log(`Row ${index}: Using fallback pole ID from field '${key}': ${value}`);
+            poleIdValue = value;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Skip if we couldn't find any pole ID and no SCID
+    if (!poleIdValue && !scid) {
+      console.log(`Row ${index} skipped: no valid pole ID or SCID found`);
       return;
     }
     
-    // Create pole ID with scid
-    const poleId = `${scid}-${poleIdValue}`;
+    // Create pole ID with scid if available
+    const poleId = scid ? `${scid}-${poleIdValue || index}` : `unknown-${poleIdValue || index}`;
     const normalizedPoleId = normalizePoleId(poleId);
+    
+    console.log(`Row ${index}: Created pole ID: ${poleId}, normalized: ${normalizedPoleId}`);
     
     // Check for duplicates
     if (poles.has(normalizedPoleId)) {
@@ -208,12 +349,13 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       console.log(`Duplicate found: ${poleId}`);
     }
     
-    // Get pole specification
-    const poleSpec = getFieldValue(row, ['pole_spec', 'Pole Spec']) || "";
+    // Get pole specification (with multiple potential field names)
+    const poleSpecOptions = [
+      'pole_spec', 'Pole Spec', 'pole specification', 'Pole Specification',
+      'polespec', 'PoleSpec', 'pole_class', 'Pole Class', 'pole class'
+    ];
     
-    // Get loading percentages - try multiple field name variations
-    let existingLoading = 0;
-    let finalLoading = 0;
+    const poleSpec = getFieldValue(row, poleSpecOptions, 'pole spec') || "";
     
     // Handle multiple possible field names for loading percentages
     const existingLoadingOptions = [
@@ -222,7 +364,14 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       'existing_capacity',
       'Existing Capacity',
       'capacity_existing_percent',
-      'existing capacity'
+      'existing capacity',
+      'existing_loading',
+      'Existing Loading',
+      'percent_existing',
+      'Percent Existing',
+      '% existing',
+      'existing %',
+      'existing'
     ];
     
     const finalLoadingOptions = [
@@ -231,28 +380,58 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       'final_passing_capacity',
       'Final Passing Capacity', 
       'capacity_final_percent',
-      'final capacity'
+      'final capacity',
+      'final_loading',
+      'Final Loading',
+      'percent_final',
+      'Percent Final',
+      '% final',
+      'final %',
+      'final'
     ];
     
-    const existingLoadingRaw = getFieldValue(row, existingLoadingOptions);
-    const finalLoadingRaw = getFieldValue(row, finalLoadingOptions);
+    // Try to get loading values using multiple potential field names
+    const existingLoadingRaw = getFieldValue(row, existingLoadingOptions, 'existing loading');
+    const finalLoadingRaw = getFieldValue(row, finalLoadingOptions, 'final loading');
+    
+    console.log(`Row ${index} raw loading values - Existing: ${existingLoadingRaw}, Final: ${finalLoadingRaw}`);
     
     // Parse values, handling potential string formatting with % symbol
+    let existingLoading = 0;
+    let finalLoading = 0;
+    
     if (existingLoadingRaw !== undefined) {
       if (typeof existingLoadingRaw === 'string') {
-        existingLoading = parseFloat(existingLoadingRaw.replace('%', '')) || 0;
-      } else {
-        existingLoading = parseFloat(existingLoadingRaw) || 0;
+        // Handle strings with % and other potential formatting
+        existingLoading = parseFloat(existingLoadingRaw.replace(/[^0-9.]/g, '')) || 0;
+      } else if (typeof existingLoadingRaw === 'number') {
+        // If it's already a number, use it directly
+        existingLoading = existingLoadingRaw;
       }
     }
     
     if (finalLoadingRaw !== undefined) {
       if (typeof finalLoadingRaw === 'string') {
-        finalLoading = parseFloat(finalLoadingRaw.replace('%', '')) || 0;
-      } else {
-        finalLoading = parseFloat(finalLoadingRaw) || 0;
+        // Handle strings with % and other potential formatting
+        finalLoading = parseFloat(finalLoadingRaw.replace(/[^0-9.]/g, '')) || 0;
+      } else if (typeof finalLoadingRaw === 'number') {
+        // If it's already a number, use it directly
+        finalLoading = finalLoadingRaw;
       }
     }
+    
+    // Check for values that might be percentages expressed as 0-1 values instead of 0-100
+    if (existingLoading > 0 && existingLoading < 1) {
+      existingLoading *= 100;
+      console.log(`Row ${index}: Converted existingLoading from decimal to percentage: ${existingLoading}`);
+    }
+    
+    if (finalLoading > 0 && finalLoading < 1) {
+      finalLoading *= 100;
+      console.log(`Row ${index}: Converted finalLoading from decimal to percentage: ${finalLoading}`);
+    }
+    
+    console.log(`Row ${index} parsed loading values - Existing: ${existingLoading}, Final: ${finalLoading}`);
     
     // Store pole data
     poles.set(normalizedPoleId, {
@@ -261,8 +440,8 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       poleSpec,
       existingLoading,
       finalLoading,
-      scid: scid.toString(),
-      plNumber: poleIdValue.toString()
+      scid: scid ? scid.toString() : undefined,
+      plNumber: poleIdValue ? poleIdValue.toString() : undefined
     });
     
     // Log the first few poles for debugging
@@ -279,6 +458,11 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
   });
   
   console.log(`Extracted ${poles.size} valid poles from Katapult data`);
+  
+  if (duplicates.size > 0) {
+    console.log(`Found ${duplicates.size} duplicate pole IDs in Katapult data`);
+  }
+  
   return poles;
 };
 
@@ -436,11 +620,16 @@ const extractSpidaPoles = (jsonData: any): Map<string, SpidaPole> => {
  * Normalize pole ID for consistent comparison
  */
 const normalizePoleId = (poleId: string): string => {
-  return poleId
+  if (!poleId) return '';
+  
+  const normalized = poleId
     .toString()
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, ''); // Remove all whitespace
+    .replace(/\s+/g, '') // Remove all whitespace
+    .replace(/[^a-z0-9-]/g, ''); // Remove special characters except hyphen
+  
+  return normalized;
 };
 
 /**
