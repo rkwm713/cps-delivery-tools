@@ -24,7 +24,8 @@ export const PoleTable = () => {
   const handleCopyRow = async (index: number) => {
     const pole = data.poles[index];
     
-    // Format the row for copying (tab-separated)
+    // Format the row for copying in a way that works with Word tables
+    // Word needs tab-separated values for table columns
     const rowText = `${pole.id}\t${formatLoadingValue(pole.existing)}\t${formatLoadingValue(pole.final)}\t${pole.notes}`;
     
     const success = await copyText(rowText);
@@ -32,7 +33,7 @@ export const PoleTable = () => {
       setCopiedRowIndex(index);
       toast({
         title: "Copied to clipboard",
-        description: `Row data for pole ${pole.id} has been copied to clipboard`
+        description: `Row data for pole ${pole.id} has been copied to clipboard (Word table format)`
       });
       
       // Reset the copied indication after 2 seconds
@@ -52,19 +53,23 @@ export const PoleTable = () => {
   };
 
   const handleCopyWholeTable = async () => {
-    // Create TSV format for the entire table
+    // Create properly formatted table data for Word
+    // Add header row
     const headerRow = ["Station", "Existing %", "Final %", "Description of Work"].join('\t');
+    
+    // Format each data row with tabs between columns
     const dataRows = data.poles.map(pole => 
       `${pole.id}\t${formatLoadingValue(pole.existing)}\t${formatLoadingValue(pole.final)}\t${pole.notes}`
     );
     
-    const tsvContent = [headerRow, ...dataRows].join('\n');
+    // Join rows with newlines for proper table row separation in Word
+    const tableContent = [headerRow, ...dataRows].join('\n');
     
-    const success = await copyText(tsvContent);
+    const success = await copyText(tableContent);
     if (success) {
       toast({
         title: "Copied to clipboard",
-        description: "Whole table copied to clipboard in TSV format"
+        description: "Table copied in Word-compatible format - paste directly into Word"
       });
     } else {
       toast({
@@ -129,6 +134,7 @@ export const PoleTable = () => {
                       size="icon"
                       onClick={() => handleCopyRow(index)}
                       className={copiedRowIndex === index ? "bg-green-100 text-green-600" : ""}
+                      title="Copy row in Word table format"
                     >
                       <Clipboard className="h-4 w-4" />
                     </Button>
@@ -144,6 +150,7 @@ export const PoleTable = () => {
             <Button 
               onClick={handleCopyWholeTable}
               className="bg-[#0A3251] hover:bg-[#0A3251]/90"
+              title="Copy entire table in Word table format"
             >
               <Clipboard className="mr-2 h-4 w-4" />
               Copy Whole Pole Table
