@@ -141,13 +141,13 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       duplicates.add(normalizedPoleId);
     }
     
-    // Store pole data
+    // Store pole data - using the correct field names from Katapult export
     poles.set(normalizedPoleId, {
       poleId,
       normalizedPoleId,
       poleSpec: row.pole_spec || "",
-      existingLoading: parseFloat(row.existing_capacity_) || 0,
-      finalLoading: parseFloat(row.final_passing_capacity_) || 0,
+      existingLoading: parseFloat(row["existing_capacity_%"]) || 0,  // Correct field name with %
+      finalLoading: parseFloat(row["final_passing_capacity_%"]) || 0, // Correct field name with %
       scid: row.scid.toString(),
       plNumber: row.DLOC_number.toString()
     });
