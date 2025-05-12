@@ -1,4 +1,3 @@
-
 import type { ProcessedRow } from "@/pages/Index";
 import * as XLSX from 'xlsx';
 
@@ -130,10 +129,22 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
   const poleData = excelData.filter(row => row.node_type === "pole");
   
   poleData.forEach(row => {
-    if (!row.scid || !row.DLOC_number) return;
+    if (!row.scid) return; // Skip if scid is missing as it's our primary key
     
-    // Create pole ID from scid and DLOC_number
-    const poleId = `${row.scid}-${row.DLOC_number}`;
+    // Find the actual pole ID using fallback logic
+    let poleIdValue = row.pole_tag;
+    if (!poleIdValue && row.DLOC_number) {
+      poleIdValue = row.DLOC_number;
+    }
+    if (!poleIdValue && row.PL_number) {
+      poleIdValue = row.PL_number;
+    }
+    
+    // Skip if we couldn't find any pole ID
+    if (!poleIdValue) return;
+    
+    // Create pole ID with scid
+    const poleId = `${row.scid}-${poleIdValue}`;
     const normalizedPoleId = normalizePoleId(poleId);
     
     // Check for duplicates
@@ -149,7 +160,7 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       existingLoading: parseFloat(row["existing_capacity_%"]) || 0,  // Correct field name with %
       finalLoading: parseFloat(row["final_passing_capacity_%"]) || 0, // Correct field name with %
       scid: row.scid.toString(),
-      plNumber: row.DLOC_number.toString()
+      plNumber: poleIdValue.toString()
     });
   });
   
