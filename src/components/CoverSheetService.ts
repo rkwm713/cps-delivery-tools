@@ -42,90 +42,105 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
         const city = json.address?.city || "";
         const engineer = json.engineer || "";
         
-        // Process poles
+        // Process poles from leads->locations structure
         const poles: PoleRow[] = [];
-        if (json.clientData?.poles && Array.isArray(json.clientData.poles)) {
-          json.clientData.poles.forEach((pole: any) => {
-            const stationId = pole.aliases && pole.aliases[0]?.id ? pole.aliases[0].id : pole.externalId || "";
-            
-            // Add pole to list
-            poles.push({
-              id: stationId,
-              existing: null, // Will be filled later
-              final: null,    // Will be filled later
-              notes: ""
-            });
+        let totalPLAs = 0;
+        
+        if (json.leads && Array.isArray(json.leads)) {
+          // Process each lead
+          json.leads.forEach(lead => {
+            if (lead.locations && Array.isArray(lead.locations)) {
+              // Process locations within each lead
+              lead.locations.forEach(location => {
+                // Extract station ID from location label
+                const stationId = location.label || "";
+                
+                // Create default pole object
+                const pole: PoleRow = {
+                  id: stationId,
+                  existing: null, 
+                  final: null,
+                  notes: ""
+                };
+                
+                // Extract description of work from remedies
+                if (location.remedies && Array.isArray(location.remedies) && location.remedies.length > 0) {
+                  pole.notes = location.remedies.join(", ");
+                }
+                
+                // Check if designs exist and process them
+                if (location.designs && Array.isArray(location.designs)) {
+                  // Find Measured Design and Recommended Design
+                  const measuredDesign = location.designs.find(design => design.label === "Measured Design");
+                  const recommendedDesign = location.designs.find(design => design.label === "Recommended Design");
+                  
+                  // Count PLAs (design analysis layers)
+                  if (measuredDesign) totalPLAs++;
+                  if (recommendedDesign) totalPLAs++;
+                  
+                  // Extract Existing % from Measured Design
+                  if (measuredDesign && measuredDesign.analysis && Array.isArray(measuredDesign.analysis)) {
+                    // Find Light - Grade C analysis or use the first analysis available
+                    const analysis = measuredDesign.analysis.find(a => a.id === "Light - Grade C") || 
+                                    (measuredDesign.analysis.length > 0 ? measuredDesign.analysis[0] : null);
+                    
+                    if (analysis && analysis.results && Array.isArray(analysis.results)) {
+                      // Find pole stress result
+                      const poleStress = analysis.results.find(result => 
+                        result.component === "Pole" && result.analysisType === "STRESS"
+                      );
+                      
+                      if (poleStress && poleStress.actual !== undefined) {
+                        pole.existing = parseFloat(poleStress.actual);
+                      }
+                    }
+                  }
+                  
+                  // Extract Final % from Recommended Design
+                  if (recommendedDesign && recommendedDesign.analysis && Array.isArray(recommendedDesign.analysis)) {
+                    // Find Light - Grade C analysis or use the first analysis available
+                    const analysis = recommendedDesign.analysis.find(a => a.id === "Light - Grade C") || 
+                                    (recommendedDesign.analysis.length > 0 ? recommendedDesign.analysis[0] : null);
+                    
+                    if (analysis && analysis.results && Array.isArray(analysis.results)) {
+                      // Find pole stress result
+                      const poleStress = analysis.results.find(result => 
+                        result.component === "Pole" && result.analysisType === "STRESS"
+                      );
+                      
+                      if (poleStress && poleStress.actual !== undefined) {
+                        pole.final = parseFloat(poleStress.actual);
+                      }
+                    }
+                  }
+                }
+                
+                // Add pole to the array
+                poles.push(pole);
+              });
+            }
           });
         }
         
-        // Check if design layers exist
-        let measuredDesign: any = null;
-        let recommendedDesign: any = null;
+        // Count unique poles for comments
+        const uniquePoleIds = new Set(poles.map(pole => pole.id));
+        const poleCount = uniquePoleIds.size;
         
-        // Process design layers for loading values
-        if (json.designLayers && Array.isArray(json.designLayers)) {
-          measuredDesign = json.designLayers.find((layer: any) => layer.label === "Measured Design");
-          recommendedDesign = json.designLayers.find((layer: any) => layer.label === "Recommended Design");
-          
-          // Count unique pole IDs for comments
-          const uniquePoleIds = new Set(poles.map(pole => pole.id));
-          const poleCount = uniquePoleIds.size;
-          const plaCount = json.designLayers.length;
-          
-          // Default comments
-          const comments = `${plaCount} PLAs on ${poleCount} poles`;
-          
-          // Fill in existing and final loading values for each pole
-          poles.forEach((pole, index) => {
-            // Check for Measured Design (existing) results
-            if (measuredDesign?.results && Array.isArray(measuredDesign.results)) {
-              const existingResult = measuredDesign.results.find((result: any) => 
-                result.component === "Pole" && result.analysisType === "STRESS");
-              if (existingResult) {
-                poles[index].existing = existingResult.actual;
-              }
-            }
-            
-            // Check for Recommended Design (final) results
-            if (recommendedDesign?.results && Array.isArray(recommendedDesign.results)) {
-              const finalResult = recommendedDesign.results.find((result: any) => 
-                result.component === "Pole" && result.analysisType === "STRESS");
-              if (finalResult) {
-                poles[index].final = finalResult.actual;
-              }
-            }
-            
-            // Both fields should remain null if their respective designs aren't found
-            // The null values will be rendered as "—" in the UI
-          });
-          
-          const coverSheetData: CoverSheetData = {
-            jobNumber,
-            client: "Charter/Spectrum", // Always this value
-            date: formattedDate,
-            location,
-            city,
-            engineer,
-            comments,
-            poles
-          };
-          
-          resolve({ success: true, data: coverSheetData });
-        } else {
-          // No design layers found at all
-          const coverSheetData: CoverSheetData = {
-            jobNumber,
-            client: "Charter/Spectrum", // Always this value
-            date: formattedDate,
-            location,
-            city,
-            engineer,
-            comments: "0 PLAs on " + poles.length + " poles",
-            poles
-          };
-          
-          resolve({ success: true, data: coverSheetData });
-        }
+        // Generate comments
+        const comments = `${totalPLAs} PLAs on ${poleCount} poles`;
+        
+        const coverSheetData: CoverSheetData = {
+          jobNumber,
+          client: "Charter/Spectrum", // Always this value
+          date: formattedDate,
+          location,
+          city,
+          engineer,
+          comments,
+          poles
+        };
+        
+        resolve({ success: true, data: coverSheetData });
       } catch (error) {
         console.error("Error processing SPIDAcalc file:", error);
         resolve({ success: false, error: "Invalid SPIDAcalc file format" });
