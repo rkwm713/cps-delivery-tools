@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,11 +5,11 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/components/ui/use-toast";
-import { processFiles } from "./FileProcessingService";
+import { processFiles, type VerificationResult } from "./FileProcessingService";
 import type { ProcessedRow } from "@/pages/Index";
 
 interface FileUploadProps {
-  onResultsGenerated: (data: ProcessedRow[]) => void;
+  onResultsGenerated: (data: ProcessedRow[], verification: VerificationResult) => void;
   onProcessingStart: () => void;
   threshold: number;
   setThreshold: (value: number) => void;
@@ -74,15 +73,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     onProcessingStart();
     
     try {
-      // In a real application, we would process these files with a backend service
-      // For this demo, we'll simulate the processing with our frontend service
-      const results = await processFiles(katapultFile, spidaFile);
-      onResultsGenerated(results);
+      // Process the files using our service
+      const result = await processFiles(katapultFile, spidaFile);
+      onResultsGenerated(result.rows, result.verification);
     } catch (error) {
       console.error("Error processing files:", error);
       toast({
         title: "Processing Error",
-        description: "Failed to process the uploaded files. Please check the file formats.",
+        description: error instanceof Error ? error.message : "Failed to process the uploaded files. Please check the file formats.",
         variant: "destructive"
       });
     }
@@ -162,8 +160,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             <p className="font-medium text-blue-700">How this works</p>
             <ul className="list-disc list-inside text-blue-600 mt-1 space-y-1">
               <li>Upload both the Katapult Excel file and SPIDAcalc JSON file</li>
+              <li>Files will be processed to verify matching pole numbers</li>
+              <li>Any mismatched or missing poles will be highlighted</li>
               <li>Adjust the threshold to control which differences are flagged</li>
-              <li>Click 'Process Files' to generate the comparison table</li>
               <li>View all poles or switch to the 'Issues' tab to see only flagged rows</li>
               <li>Export results to CSV for further analysis</li>
             </ul>

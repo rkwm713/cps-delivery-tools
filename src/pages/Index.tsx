@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import type { VerificationResult } from "@/components/FileProcessingService";
 
 export interface ProcessedRow {
   poleNumber: string;
@@ -24,11 +25,12 @@ export interface ProcessedRow {
 const Index = () => {
   const [results, setResults] = useState<ProcessedRow[]>([]);
   const [issues, setIssues] = useState<ProcessedRow[]>([]);
+  const [verification, setVerification] = useState<VerificationResult | null>(null);
   const [threshold, setThreshold] = useState<number>(5);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const { toast } = useToast();
 
-  const handleResultsGenerated = (data: ProcessedRow[]) => {
+  const handleResultsGenerated = (data: ProcessedRow[], verificationResult: VerificationResult) => {
     setIsProcessing(false);
     
     // Apply threshold to find issues
@@ -46,15 +48,30 @@ const Index = () => {
     
     setResults(data);
     setIssues(issueRows);
+    setVerification(verificationResult);
+    
+    // Create notification message
+    let notificationDesc = `Found ${data.length} poles with ${issueRows.length} potential issues.`;
+    
+    // Add verification information to the notification if there are issues
+    const totalVerificationIssues = 
+      verificationResult.missingInSpida.length + 
+      verificationResult.missingInKatapult.length +
+      verificationResult.formattingIssues.length;
+    
+    if (totalVerificationIssues > 0) {
+      notificationDesc += ` Detected ${totalVerificationIssues} verification problems with pole numbers.`;
+    }
     
     toast({
       title: "Data processed successfully",
-      description: `Found ${data.length} poles with ${issueRows.length} potential issues.`,
+      description: notificationDesc,
     });
   };
 
   const handleProcessingStart = () => {
     setIsProcessing(true);
+    setVerification(null);
   };
 
   const handleExportCSV = () => {
@@ -122,6 +139,50 @@ const Index = () => {
             />
           </CardContent>
         </Card>
+
+        {verification && (Object.values(verification).some(arr => arr.length > 0) || verification.formattingIssues.length > 0) && (
+          <Card className="mb-6 bg-amber-50 border-amber-200 shadow-md">
+            <CardContent className="pt-6">
+              <h3 className="text-xl font-bold mb-3 text-amber-800">Pole Number Verification Issues</h3>
+              
+              {verification.missingInSpida.length > 0 && (
+                <div className="mb-3">
+                  <h4 className="font-semibold text-amber-700">Poles missing in SPIDA ({verification.missingInSpida.length}):</h4>
+                  <p className="text-sm text-amber-700 mt-1">
+                    {verification.missingInSpida.slice(0, 10).join(", ")}
+                    {verification.missingInSpida.length > 10 && "..."}
+                  </p>
+                </div>
+              )}
+              
+              {verification.missingInKatapult.length > 0 && (
+                <div className="mb-3">
+                  <h4 className="font-semibold text-amber-700">Poles missing in Katapult ({verification.missingInKatapult.length}):</h4>
+                  <p className="text-sm text-amber-700 mt-1">
+                    {verification.missingInKatapult.slice(0, 10).join(", ")}
+                    {verification.missingInKatapult.length > 10 && "..."}
+                  </p>
+                </div>
+              )}
+              
+              {verification.formattingIssues.length > 0 && (
+                <div className="mb-3">
+                  <h4 className="font-semibold text-amber-700">Formatting issues ({verification.formattingIssues.length}):</h4>
+                  <ul className="text-sm text-amber-700 mt-1 list-disc list-inside">
+                    {verification.formattingIssues.slice(0, 5).map((issue, i) => (
+                      <li key={i}>{issue.poleId}: {issue.issue}</li>
+                    ))}
+                    {verification.formattingIssues.length > 5 && <li>...</li>}
+                  </ul>
+                </div>
+              )}
+              
+              <div className="text-amber-600 text-sm italic mt-2">
+                Note: These issues might impact comparison results. Consider resolving them for more accurate analysis.
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {results.length > 0 && (
           <div className="space-y-6">
