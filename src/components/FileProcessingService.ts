@@ -22,15 +22,28 @@ export const processFiles = async (
     const katapultData = await readExcelFile(katapultFile);
     const spidaData = await readJsonFile(spidaFile);
     
+    // Log sample data to debug field names and formats
+    if (katapultData.length > 0) {
+      console.log("Katapult sample row:", katapultData[0]);
+    }
+    
     // Extract pole information from both sources
     const katapultPoles = extractKatapultPoles(katapultData);
     const spidaPoles = extractSpidaPoles(spidaData);
+    
+    console.log("Katapult poles extracted:", katapultPoles.size);
+    console.log("SPIDA poles extracted:", spidaPoles.size);
     
     // Verify pole numbers between the two sources
     const verification = verifyPoleNumbers(katapultPoles, spidaPoles);
     
     // Generate comparison data
     const comparisonData = generateComparisonData(katapultPoles, spidaPoles);
+    
+    // Log a few sample results for debugging
+    if (comparisonData.length > 0) {
+      console.log("Sample comparison result:", comparisonData[0]);
+    }
     
     return {
       rows: comparisonData,
@@ -65,6 +78,7 @@ const readExcelFile = async (file: File): Promise<any[]> => {
         
         // Parse sheet to JSON (header is on row 2)
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 1 });
+        console.log("Excel headers:", Object.keys(jsonData[0] || {}));
         resolve(jsonData);
       } catch (err) {
         reject(new Error(`Error parsing Excel file: ${err}`));
@@ -121,49 +135,150 @@ interface KatapultPole {
   plNumber?: string;
 }
 
+/**
+ * Case-insensitive object property access with fallback options
+ */
+const getFieldValue = (obj: any, fieldOptions: string[]): any => {
+  if (!obj) return undefined;
+  
+  // Try each field option in order
+  for (const field of fieldOptions) {
+    // Try exact match
+    if (obj[field] !== undefined) {
+      return obj[field];
+    }
+    
+    // Try case-insensitive match
+    const lowerField = field.toLowerCase();
+    const match = Object.keys(obj).find(key => key.toLowerCase() === lowerField);
+    if (match && obj[match] !== undefined) {
+      return obj[match];
+    }
+  }
+  
+  return undefined;
+};
+
 const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
   const poles = new Map<string, KatapultPole>();
   const duplicates = new Set<string>();
   
   // Filter data to only include rows where node_type is "pole"
-  const poleData = excelData.filter(row => row.node_type === "pole");
+  const poleData = excelData.filter(row => {
+    const nodeType = getFieldValue(row, ['node_type', 'Node Type', 'NODE_TYPE']);
+    return nodeType === "pole";
+  });
   
-  poleData.forEach(row => {
-    if (!row.scid) return; // Skip if scid is missing as it's our primary key
+  console.log(`Found ${poleData.length} poles in Katapult data`);
+  
+  poleData.forEach((row, index) => {
+    // Get SCID (required field)
+    const scid = getFieldValue(row, ['scid', 'SCID']);
+    if (!scid) {
+      console.log(`Row ${index} skipped: missing SCID`);
+      return;
+    }
     
     // Find the actual pole ID using fallback logic
-    let poleIdValue = row.pole_tag;
-    if (!poleIdValue && row.DLOC_number) {
-      poleIdValue = row.DLOC_number;
+    const poleTag = getFieldValue(row, ['pole_tag', 'Pole Tag', 'POLE_TAG']);
+    const dlocNumber = getFieldValue(row, ['DLOC_number', 'dloc_number', 'Dloc Number']);
+    const plNumber = getFieldValue(row, ['PL_number', 'pl_number', 'Pl Number']);
+    
+    let poleIdValue = poleTag;
+    if (!poleIdValue && dlocNumber) {
+      poleIdValue = dlocNumber;
     }
-    if (!poleIdValue && row.PL_number) {
-      poleIdValue = row.PL_number;
+    if (!poleIdValue && plNumber) {
+      poleIdValue = plNumber;
     }
     
     // Skip if we couldn't find any pole ID
-    if (!poleIdValue) return;
+    if (!poleIdValue) {
+      console.log(`Row ${index} skipped: no valid pole ID found`);
+      return;
+    }
     
     // Create pole ID with scid
-    const poleId = `${row.scid}-${poleIdValue}`;
+    const poleId = `${scid}-${poleIdValue}`;
     const normalizedPoleId = normalizePoleId(poleId);
     
     // Check for duplicates
     if (poles.has(normalizedPoleId)) {
       duplicates.add(normalizedPoleId);
+      console.log(`Duplicate found: ${poleId}`);
     }
     
-    // Store pole data - using the correct field names from Katapult export
+    // Get pole specification
+    const poleSpec = getFieldValue(row, ['pole_spec', 'Pole Spec']) || "";
+    
+    // Get loading percentages - try multiple field name variations
+    let existingLoading = 0;
+    let finalLoading = 0;
+    
+    // Handle multiple possible field names for loading percentages
+    const existingLoadingOptions = [
+      'existing_capacity_%', 
+      'Existing Capacity %',
+      'existing_capacity',
+      'Existing Capacity',
+      'capacity_existing_percent',
+      'existing capacity'
+    ];
+    
+    const finalLoadingOptions = [
+      'final_passing_capacity_%',
+      'Final Passing Capacity %',
+      'final_passing_capacity',
+      'Final Passing Capacity', 
+      'capacity_final_percent',
+      'final capacity'
+    ];
+    
+    const existingLoadingRaw = getFieldValue(row, existingLoadingOptions);
+    const finalLoadingRaw = getFieldValue(row, finalLoadingOptions);
+    
+    // Parse values, handling potential string formatting with % symbol
+    if (existingLoadingRaw !== undefined) {
+      if (typeof existingLoadingRaw === 'string') {
+        existingLoading = parseFloat(existingLoadingRaw.replace('%', '')) || 0;
+      } else {
+        existingLoading = parseFloat(existingLoadingRaw) || 0;
+      }
+    }
+    
+    if (finalLoadingRaw !== undefined) {
+      if (typeof finalLoadingRaw === 'string') {
+        finalLoading = parseFloat(finalLoadingRaw.replace('%', '')) || 0;
+      } else {
+        finalLoading = parseFloat(finalLoadingRaw) || 0;
+      }
+    }
+    
+    // Store pole data
     poles.set(normalizedPoleId, {
       poleId,
       normalizedPoleId,
-      poleSpec: row.pole_spec || "",
-      existingLoading: parseFloat(row["existing_capacity_%"]) || 0,  // Correct field name with %
-      finalLoading: parseFloat(row["final_passing_capacity_%"]) || 0, // Correct field name with %
-      scid: row.scid.toString(),
+      poleSpec,
+      existingLoading,
+      finalLoading,
+      scid: scid.toString(),
       plNumber: poleIdValue.toString()
     });
+    
+    // Log the first few poles for debugging
+    if (index < 3) {
+      console.log(`Katapult Pole ${index}:`, {
+        poleId,
+        poleSpec,
+        existingLoading,
+        finalLoading,
+        rawExisting: existingLoadingRaw,
+        rawFinal: finalLoadingRaw
+      });
+    }
   });
   
+  console.log(`Extracted ${poles.size} valid poles from Katapult data`);
   return poles;
 };
 
@@ -396,6 +511,11 @@ const generateComparisonData = (
       katapultFinalLoading: katapult.finalLoading
     };
     
+    // Debug log for mismatched poles
+    if (!spida) {
+      console.log(`No SPIDA match for Katapult pole: ${katapult.poleId}`);
+    }
+    
     results.push(row);
   });
   
@@ -403,6 +523,8 @@ const generateComparisonData = (
   spidaPoles.forEach((spida) => {
     const normalizedId = spida.normalizedPoleId;
     if (!katapultPoles.has(normalizedId)) {
+      console.log(`No Katapult match for SPIDA pole: ${spida.poleId}`);
+      
       const row: ProcessedRow = {
         poleNumber: spida.poleId,
         spidaPoleSpec: spida.poleSpec,
