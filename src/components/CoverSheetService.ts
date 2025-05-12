@@ -58,10 +58,14 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
           });
         }
         
+        // Check if design layers exist
+        let measuredDesign: any = null;
+        let recommendedDesign: any = null;
+        
         // Process design layers for loading values
         if (json.designLayers && Array.isArray(json.designLayers)) {
-          const measuredDesign = json.designLayers.find((layer: any) => layer.label === "Measured Design");
-          const recommendedDesign = json.designLayers.find((layer: any) => layer.label === "Recommended Design");
+          measuredDesign = json.designLayers.find((layer: any) => layer.label === "Measured Design");
+          recommendedDesign = json.designLayers.find((layer: any) => layer.label === "Recommended Design");
           
           // Count unique pole IDs for comments
           const uniquePoleIds = new Set(poles.map(pole => pole.id));
@@ -73,6 +77,7 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
           
           // Fill in existing and final loading values for each pole
           poles.forEach((pole, index) => {
+            // Check for Measured Design (existing) results
             if (measuredDesign?.results && Array.isArray(measuredDesign.results)) {
               const existingResult = measuredDesign.results.find((result: any) => 
                 result.component === "Pole" && result.analysisType === "STRESS");
@@ -81,6 +86,7 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
               }
             }
             
+            // Check for Recommended Design (final) results
             if (recommendedDesign?.results && Array.isArray(recommendedDesign.results)) {
               const finalResult = recommendedDesign.results.find((result: any) => 
                 result.component === "Pole" && result.analysisType === "STRESS");
@@ -88,6 +94,9 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
                 poles[index].final = finalResult.actual;
               }
             }
+            
+            // Both fields should remain null if their respective designs aren't found
+            // The null values will be rendered as "—" in the UI
           });
           
           const coverSheetData: CoverSheetData = {
@@ -103,7 +112,19 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
           
           resolve({ success: true, data: coverSheetData });
         } else {
-          resolve({ success: false, error: "Missing design layers in SPIDAcalc file" });
+          // No design layers found at all
+          const coverSheetData: CoverSheetData = {
+            jobNumber,
+            client: "Charter/Spectrum", // Always this value
+            date: formattedDate,
+            location,
+            city,
+            engineer,
+            comments: "0 PLAs on " + poles.length + " poles",
+            poles
+          };
+          
+          resolve({ success: true, data: coverSheetData });
         }
       } catch (error) {
         console.error("Error processing SPIDAcalc file:", error);
