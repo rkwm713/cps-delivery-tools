@@ -164,6 +164,54 @@ interface SpidaPole {
   finalLoading: number;
 }
 
+/**
+ * Helper function to extract pole specification from SPIDAcalc design
+ */
+const extractPoleSpecification = (design: any): string => {
+  if (!design?.structure?.pole) {
+    return "Unknown";
+  }
+
+  const pole = design.structure.pole;
+  
+  // First try the clientItemAlias which often contains the formatted spec directly (e.g. "55-2")
+  if (pole.clientItemAlias) {
+    return pole.clientItemAlias;
+  }
+  
+  // If clientItemAlias isn't available, try to build it from clientItem details
+  if (pole.clientItem) {
+    const clientItem = pole.clientItem;
+    let height = "";
+    let poleClass = "";
+    let species = "";
+    
+    // Extract height (convert from meters to feet)
+    if (clientItem.height && clientItem.height.value) {
+      const heightInMeters = clientItem.height.value;
+      const heightInFeet = Math.round(heightInMeters * 3.28084);
+      height = heightInFeet.toString();
+    }
+    
+    // Extract class
+    if (clientItem.classOfPole) {
+      poleClass = clientItem.classOfPole;
+    }
+    
+    // Extract species (optional)
+    if (clientItem.species) {
+      species = clientItem.species;
+    }
+    
+    // Combine values
+    if (height && poleClass) {
+      return species ? `${height}-${poleClass} ${species}` : `${height}-${poleClass}`;
+    }
+  }
+  
+  return "Unknown";
+}
+
 const extractSpidaPoles = (jsonData: any): Map<string, SpidaPole> => {
   const poles = new Map<string, SpidaPole>();
   const duplicates = new Set<string>();
@@ -173,50 +221,76 @@ const extractSpidaPoles = (jsonData: any): Map<string, SpidaPole> => {
     jsonData.leads.forEach((lead: any) => {
       if (lead.locations && Array.isArray(lead.locations)) {
         lead.locations.forEach((loc: any) => {
-          if (loc.designs && Array.isArray(loc.designs)) {
-            loc.designs.forEach((design: any) => {
-              if (design.structure && design.structure.pole) {
-                const pole = design.structure.pole;
-                const poleId = pole.clientItemAlias;
-                
-                if (!poleId) return;
-                
-                const normalizedPoleId = normalizePoleId(poleId);
-                
-                // Check for duplicates
-                if (poles.has(normalizedPoleId)) {
-                  duplicates.add(normalizedPoleId);
-                }
-                
-                // Calculate existing loading
-                const existingLoading = pole.stressRatio 
-                  ? parseFloat((pole.stressRatio * 100).toFixed(2)) 
-                  : 0;
-                
-                // Calculate final loading
-                let finalLoading = existingLoading;
-                if (design.results && Array.isArray(design.results)) {
-                  const poleResults = design.results.filter((r: any) => 
-                    r.component === 'Pole' && r.analysisType === 'STRESS'
-                  );
-                  
-                  if (poleResults.length > 0) {
-                    const maxLoading = Math.max(...poleResults.map((r: any) => r.actual || 0));
-                    finalLoading = parseFloat(maxLoading.toFixed(2));
-                  }
-                }
-                
-                // Store pole data
-                poles.set(normalizedPoleId, {
-                  poleId,
-                  normalizedPoleId,
-                  poleSpec: pole.clientItemAlias || "",
-                  existingLoading,
-                  finalLoading
-                });
-              }
-            });
+          if (!loc.label) return; // Skip if no label (pole ID)
+          
+          const poleId = loc.label;
+          const normalizedPoleId = normalizePoleId(poleId);
+          
+          // Skip if already processed this pole ID
+          if (poles.has(normalizedPoleId)) {
+            duplicates.add(normalizedPoleId);
+            return;
           }
+          
+          // Initialize pole data
+          let poleSpec = "Unknown";
+          let existingLoading = 0;
+          let finalLoading = 0;
+          
+          // Process designs if available
+          if (loc.designs && Array.isArray(loc.designs)) {
+            // Find measured and recommended designs
+            const measuredDesign = loc.designs.find((d: any) => d.label === "Measured Design");
+            const recommendedDesign = loc.designs.find((d: any) => d.label === "Recommended Design");
+            
+            // Extract pole spec from recommended design (preferred) or measured design
+            if (recommendedDesign) {
+              poleSpec = extractPoleSpecification(recommendedDesign);
+            } else if (measuredDesign) {
+              poleSpec = extractPoleSpecification(measuredDesign);
+            }
+            
+            // Extract existing loading
+            if (measuredDesign && measuredDesign.analysis && Array.isArray(measuredDesign.analysis)) {
+              const analysis = measuredDesign.analysis.find((a: any) => a.id === "Light - Grade C") || 
+                              (measuredDesign.analysis.length > 0 ? measuredDesign.analysis[0] : null);
+              
+              if (analysis && analysis.results && Array.isArray(analysis.results)) {
+                const poleStress = analysis.results.find((r: any) => 
+                  r.component === 'Pole' && r.analysisType === 'STRESS'
+                );
+                
+                if (poleStress && typeof poleStress.actual === 'number') {
+                  existingLoading = parseFloat(poleStress.actual.toFixed(2));
+                }
+              }
+            }
+            
+            // Extract final loading
+            if (recommendedDesign && recommendedDesign.analysis && Array.isArray(recommendedDesign.analysis)) {
+              const analysis = recommendedDesign.analysis.find((a: any) => a.id === "Light - Grade C") || 
+                              (recommendedDesign.analysis.length > 0 ? recommendedDesign.analysis[0] : null);
+              
+              if (analysis && analysis.results && Array.isArray(analysis.results)) {
+                const poleStress = analysis.results.find((r: any) => 
+                  r.component === 'Pole' && r.analysisType === 'STRESS'
+                );
+                
+                if (poleStress && typeof poleStress.actual === 'number') {
+                  finalLoading = parseFloat(poleStress.actual.toFixed(2));
+                }
+              }
+            }
+          }
+          
+          // Store pole data
+          poles.set(normalizedPoleId, {
+            poleId,
+            normalizedPoleId,
+            poleSpec,
+            existingLoading,
+            finalLoading
+          });
         });
       }
     });
