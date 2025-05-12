@@ -1,5 +1,6 @@
 
 import { CoverSheetData, PoleRow } from "@/context/CoverSheetContext";
+import { getAddressFromCoordinates } from "@/services/GeocodingService";
 
 export interface ProcessSpidaResult {
   success: boolean;
@@ -11,7 +12,7 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
   return new Promise((resolve) => {
     const reader = new FileReader();
     
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         if (!event.target || typeof event.target.result !== 'string') {
           resolve({ success: false, error: "Failed to read file" });
@@ -38,20 +39,22 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
           console.error("Date parsing error:", e);
         }
         
-        const location = json.clientData?.generalLocation || "";
-        const city = json.address?.city || "";
+        // Get default location and city values from json
+        let location = json.clientData?.generalLocation || "";
+        let city = json.address?.city || "";
         const engineer = json.engineer || "";
         
         // Process poles from leads->locations structure
         const poles: PoleRow[] = [];
         let totalPLAs = 0;
+        let firstPoleCoordinates = null;
         
         if (json.leads && Array.isArray(json.leads)) {
           // Process each lead
-          json.leads.forEach(lead => {
+          for (const lead of json.leads) {
             if (lead.locations && Array.isArray(lead.locations)) {
               // Process locations within each lead
-              lead.locations.forEach(location => {
+              for (const location of lead.locations) {
                 // Extract station ID from location label
                 const stationId = location.label || "";
                 
@@ -62,6 +65,33 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
                   final: null,
                   notes: ""
                 };
+                
+                // Extract coordinates from the first pole we encounter
+                if (!firstPoleCoordinates && location.pointHeight !== undefined) {
+                  try {
+                    // Check for different coordinate formats in the SPIDAcalc file
+                    if (location.latitude !== undefined && location.longitude !== undefined) {
+                      firstPoleCoordinates = {
+                        latitude: location.latitude,
+                        longitude: location.longitude
+                      };
+                    } else if (location.coordinate && location.coordinate.latitude !== undefined && location.coordinate.longitude !== undefined) {
+                      firstPoleCoordinates = {
+                        latitude: location.coordinate.latitude,
+                        longitude: location.coordinate.longitude
+                      };
+                    } else if (location.geographicCoordinate && 
+                              location.geographicCoordinate.latitude !== undefined && 
+                              location.geographicCoordinate.longitude !== undefined) {
+                      firstPoleCoordinates = {
+                        latitude: location.geographicCoordinate.latitude,
+                        longitude: location.geographicCoordinate.longitude
+                      };
+                    }
+                  } catch (e) {
+                    console.error("Error extracting coordinates:", e);
+                  }
+                }
                 
                 // Extract description of work from remedies
                 if (location.remedies && Array.isArray(location.remedies) && location.remedies.length > 0) {
@@ -117,9 +147,33 @@ export const processSpidaFile = (file: File): Promise<ProcessSpidaResult> => {
                 
                 // Add pole to the array
                 poles.push(pole);
-              });
+              }
             }
-          });
+          }
+        }
+        
+        // Try to get city and location from coordinates
+        if (firstPoleCoordinates) {
+          try {
+            const geocodingResult = await getAddressFromCoordinates(
+              firstPoleCoordinates.latitude, 
+              firstPoleCoordinates.longitude
+            );
+            
+            if (geocodingResult) {
+              // Only override if we got valid results and original values are empty
+              if (geocodingResult.city && (!city || city === "")) {
+                city = geocodingResult.city;
+              }
+              
+              if (geocodingResult.location && (!location || location === "")) {
+                location = geocodingResult.location;
+              }
+            }
+          } catch (error) {
+            console.error("Geocoding error:", error);
+            // Continue with the existing city/location values
+          }
         }
         
         // Count unique poles for comments
