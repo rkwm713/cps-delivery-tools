@@ -260,63 +260,23 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
     const scidOptions = ['scid', 'SCID', 'sc_id', 'SC_ID', 'ScId', 'sc id', 'SC ID', 'id', 'ID'];
     const scid = getFieldValue(row, scidOptions, 'SCID');
     
-    // Try to find pole identifier using multiple field name patterns
-    const poleTagOptions = [
-      'pole_tag', 'Pole Tag', 'POLE_TAG', 'poletag', 'PoleTag', 'pole tag', 'Pole tag', 
-      'structure_id', 'Structure ID', 'structure id'
-    ];
-    
-    const dlocOptions = [
-      'DLOC_number', 'dloc_number', 'Dloc Number', 'dloc', 'DLOC', 'dloc number', 'DLOC number'
-    ];
-    
+    // As per reference doc: For Pole Number, use SCID + "-" + PL_number
     const plNumberOptions = [
       'PL_number', 'pl_number', 'Pl Number', 'pl', 'PL', 'plnumber', 'PLNumber', 'pl number', 'PL number'
     ];
-    
-    // Try to find pole identifiers
-    const poleTag = getFieldValue(row, poleTagOptions, 'pole tag');
-    const dlocNumber = getFieldValue(row, dlocOptions, 'DLOC number');
     const plNumber = getFieldValue(row, plNumberOptions, 'PL number');
     
     // Debug which identifiers were found
-    console.log(`Row ${index} identifiers - SCID: ${scid}, Pole Tag: ${poleTag}, DLOC: ${dlocNumber}, PL: ${plNumber}`);
+    console.log(`Row ${index} identifiers - SCID: ${scid}, PL: ${plNumber}`);
     
-    let poleIdValue = poleTag;
-    if (!poleIdValue && dlocNumber) {
-      poleIdValue = dlocNumber;
-    }
-    if (!poleIdValue && plNumber) {
-      poleIdValue = plNumber;
-    }
-    
-    // If we couldn't find any identifier but have an SCID, use a fallback approach
-    if (!poleIdValue && scid) {
-      // Loop through all fields looking for anything that might be a pole identifier
-      for (const key of Object.keys(row)) {
-        const value = row[key];
-        if (typeof value === 'string' || typeof value === 'number') {
-          // Skip the SCID field we already checked and fields with very long values
-          if (key.toLowerCase().includes('scid') || String(value).length > 20) continue;
-          
-          // If this looks like a potential ID field, use it
-          if (value && String(value).length > 0 && String(value).length <= 10) {
-            console.log(`Row ${index}: Using fallback pole ID from field '${key}': ${value}`);
-            poleIdValue = value;
-            break;
-          }
-        }
-      }
-    }
-    
-    // Skip if we couldn't find any pole ID and no SCID
-    if (!poleIdValue && !scid) {
-      console.log(`Row ${index} skipped: no valid pole ID or SCID found`);
+    // Skip if we couldn't find both SCID and PL number
+    if (!scid || !plNumber) {
+      console.log(`Row ${index} skipped: missing SCID or PL number`);
       return;
     }
     
-    // Create pole ID with scid if available
-    const poleId = scid ? `${scid}-${poleIdValue || index}` : `unknown-${poleIdValue || index}`;
+    // Create pole ID with scid and plNumber as specified in reference doc
+    const poleId = `${scid}-${plNumber}`;
     const normalizedPoleId = normalizePoleId(poleId);
     
     console.log(`Row ${index}: Created pole ID: ${poleId}, normalized: ${normalizedPoleId}`);
@@ -327,48 +287,30 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       console.log(`Duplicate found: ${poleId}`);
     }
     
-    // Get pole specification (with multiple potential field names)
+    // As per reference doc: For Katapult Pole Spec, use proposed_pole_spec or pole_spec
     const poleSpecOptions = [
-      'pole_spec', 'Pole Spec', 'pole specification', 'Pole Specification',
-      'polespec', 'PoleSpec', 'pole_class', 'Pole Class', 'pole class'
+      'proposed_pole_spec', 'Proposed Pole Spec', 'pole_spec', 'Pole Spec'
     ];
     
     const poleSpec = getFieldValue(row, poleSpecOptions, 'pole spec') || "";
     
-    // Handle multiple possible field names for loading percentages
+    // As per reference doc: For Katapult Existing Loading %, use existing_capacity_%
     const existingLoadingOptions = [
       'existing_capacity_%', 
       'Existing Capacity %',
       'existing_capacity',
-      'Existing Capacity',
-      'capacity_existing_percent',
-      'existing capacity',
-      'existing_loading',
-      'Existing Loading',
-      'percent_existing',
-      'Percent Existing',
-      '% existing',
-      'existing %',
-      'existing'
+      'Existing Capacity'
     ];
     
+    // As per reference doc: For Katapult Final Loading %, use final_passing_capacity_%
     const finalLoadingOptions = [
       'final_passing_capacity_%',
       'Final Passing Capacity %',
       'final_passing_capacity',
-      'Final Passing Capacity', 
-      'capacity_final_percent',
-      'final capacity',
-      'final_loading',
-      'Final Loading',
-      'percent_final',
-      'Percent Final',
-      '% final',
-      'final %',
-      'final'
+      'Final Passing Capacity'
     ];
     
-    // Try to get loading values using multiple potential field names
+    // Try to get loading values using the fields specified in reference
     const existingLoadingRaw = getFieldValue(row, existingLoadingOptions, 'existing loading');
     const finalLoadingRaw = getFieldValue(row, finalLoadingOptions, 'final loading');
     
@@ -419,7 +361,7 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       existingLoading,
       finalLoading,
       scid: scid ? scid.toString() : undefined,
-      plNumber: poleIdValue ? poleIdValue.toString() : undefined
+      plNumber: plNumber ? plNumber.toString() : undefined
     });
     
     // Log the first few poles for debugging
@@ -456,7 +398,8 @@ interface SpidaPole {
 }
 
 /**
- * Helper function to extract pole specification from SPIDAcalc design
+ * Extract SPIDAcalc pole specification from design
+ * Updated to follow the reference document: Use Measured → clientItem.classOfPole
  */
 const extractPoleSpecification = (design: any): string => {
   if (!design?.structure?.pole) {
@@ -465,45 +408,32 @@ const extractPoleSpecification = (design: any): string => {
 
   const pole = design.structure.pole;
   
-  // First try the clientItemAlias which often contains the formatted spec directly (e.g. "55-2")
-  if (pole.clientItemAlias) {
-    // If we have both clientItemAlias and species, combine them
-    if (pole.clientItem && pole.clientItem.species) {
-      return `${pole.clientItemAlias} ${pole.clientItem.species}`;
-    }
-    return pole.clientItemAlias;
-  }
-  
-  // If clientItemAlias isn't available, try to build it from clientItem details
-  if (pole.clientItem) {
-    const clientItem = pole.clientItem;
-    let height = "";
-    let poleClass = "";
-    let species = "";
+  // According to reference doc: Use clientItem.classOfPole
+  if (pole.clientItem && pole.clientItem.classOfPole) {
+    const classOfPole = pole.clientItem.classOfPole;
     
-    // Extract height (convert from meters to feet)
-    if (clientItem.height && clientItem.height.value) {
-      const heightInMeters = clientItem.height.value;
+    // Also try to get the height, which is often needed with class
+    let height = "";
+    if (pole.clientItem.height && pole.clientItem.height.value) {
+      const heightInMeters = pole.clientItem.height.value;
       const heightInFeet = Math.round(heightInMeters * 3.28084);
       height = heightInFeet.toString();
     }
     
-    // Extract class
-    if (clientItem.classOfPole) {
-      poleClass = clientItem.classOfPole;
+    // If we have both height and class, combine them
+    if (height) {
+      return `${height}-${classOfPole}`;
     }
     
-    // Extract species (optional)
-    if (clientItem.species) {
-      species = clientItem.species;
-    }
-    
-    // Combine values
-    if (height && poleClass) {
-      return species ? `${height}-${poleClass} ${species}` : `${height}-${poleClass}`;
-    }
+    // Otherwise just return the class
+    return classOfPole;
   }
   
+  // Fallback to clientItemAlias if available
+  if (pole.clientItemAlias) {
+    return pole.clientItemAlias;
+  }
+
   return "Unknown";
 }
 
@@ -518,6 +448,7 @@ const extractSpidaPoles = (jsonData: any): Map<string, SpidaPole> => {
         lead.locations.forEach((loc: any) => {
           if (!loc.label) return; // Skip if no label (pole ID)
           
+          // As per reference doc: Use location.label for pole ID
           const poleId = loc.label;
           const normalizedPoleId = normalizePoleId(poleId);
           
@@ -535,44 +466,63 @@ const extractSpidaPoles = (jsonData: any): Map<string, SpidaPole> => {
           // Process designs if available
           if (loc.designs && Array.isArray(loc.designs)) {
             // Find measured and recommended designs
-            const measuredDesign = loc.designs.find((d: any) => d.label === "Measured Design");
-            const recommendedDesign = loc.designs.find((d: any) => d.label === "Recommended Design");
+            const measuredDesign = loc.designs.find((d: any) => d.label === "Measured Design" || d.layerType === "Measured");
+            const recommendedDesign = loc.designs.find((d: any) => d.label === "Recommended Design" || d.layerType === "Recommended");
             
-            // Extract pole spec from recommended design (preferred) or measured design
-            if (recommendedDesign) {
-              poleSpec = extractPoleSpecification(recommendedDesign);
-            } else if (measuredDesign) {
+            // Extract pole spec from measured design as per reference
+            if (measuredDesign) {
               poleSpec = extractPoleSpecification(measuredDesign);
+              
+              // Try to add species if available
+              if (measuredDesign.structure?.pole?.clientItem?.species) {
+                poleSpec += ` ${measuredDesign.structure.pole.clientItem.species}`;
+              }
             }
             
-            // Extract existing loading from Measured Design
-            if (measuredDesign && measuredDesign.analysis && Array.isArray(measuredDesign.analysis)) {
-              const analysis = measuredDesign.analysis.find((a: any) => a.id === "Light - Grade C") || 
-                              (measuredDesign.analysis.length > 0 ? measuredDesign.analysis[0] : null);
-              
-              if (analysis && analysis.results && Array.isArray(analysis.results)) {
-                const poleStress = analysis.results.find((r: any) => 
-                  r.component === 'Pole' && r.analysisType === 'STRESS'
-                );
-                
-                if (poleStress && typeof poleStress.actual === 'number') {
-                  existingLoading = parseFloat(poleStress.actual.toFixed(2));
+            // Extract existing loading from Measured Design using stressRatio
+            if (measuredDesign && measuredDesign.structure && measuredDesign.structure.pole) {
+              // As per reference doc: Use structure.pole.stressRatio and multiply by 100
+              if (measuredDesign.structure.pole.stressRatio !== undefined) {
+                existingLoading = measuredDesign.structure.pole.stressRatio * 100;
+              } else {
+                // Fallback to analysis results if stressRatio not available
+                if (measuredDesign.analysis && Array.isArray(measuredDesign.analysis)) {
+                  const analysis = measuredDesign.analysis.find((a: any) => a.id === "Light - Grade C") || 
+                                  (measuredDesign.analysis.length > 0 ? measuredDesign.analysis[0] : null);
+                  
+                  if (analysis && analysis.results && Array.isArray(analysis.results)) {
+                    const poleStress = analysis.results.find((r: any) => 
+                      r.component === 'Pole' && r.analysisType === 'STRESS'
+                    );
+                    
+                    if (poleStress && typeof poleStress.actual === 'number') {
+                      existingLoading = parseFloat(poleStress.actual.toFixed(2));
+                    }
+                  }
                 }
               }
             }
             
-            // Extract final loading from Recommended Design
-            if (recommendedDesign && recommendedDesign.analysis && Array.isArray(recommendedDesign.analysis)) {
-              const analysis = recommendedDesign.analysis.find((a: any) => a.id === "Light - Grade C") || 
-                              (recommendedDesign.analysis.length > 0 ? recommendedDesign.analysis[0] : null);
-              
-              if (analysis && analysis.results && Array.isArray(analysis.results)) {
-                const poleStress = analysis.results.find((r: any) => 
-                  r.component === 'Pole' && r.analysisType === 'STRESS'
-                );
-                
-                if (poleStress && typeof poleStress.actual === 'number') {
-                  finalLoading = parseFloat(poleStress.actual.toFixed(2));
+            // Extract final loading from Recommended Design using stressRatio
+            if (recommendedDesign && recommendedDesign.structure && recommendedDesign.structure.pole) {
+              // As per reference doc: Use structure.pole.stressRatio and multiply by 100
+              if (recommendedDesign.structure.pole.stressRatio !== undefined) {
+                finalLoading = recommendedDesign.structure.pole.stressRatio * 100;
+              } else {
+                // Fallback to analysis results if stressRatio not available
+                if (recommendedDesign.analysis && Array.isArray(recommendedDesign.analysis)) {
+                  const analysis = recommendedDesign.analysis.find((a: any) => a.id === "Light - Grade C") || 
+                                  (recommendedDesign.analysis.length > 0 ? recommendedDesign.analysis[0] : null);
+                  
+                  if (analysis && analysis.results && Array.isArray(analysis.results)) {
+                    const poleStress = analysis.results.find((r: any) => 
+                      r.component === 'Pole' && r.analysisType === 'STRESS'
+                    );
+                    
+                    if (poleStress && typeof poleStress.actual === 'number') {
+                      finalLoading = parseFloat(poleStress.actual.toFixed(2));
+                    }
+                  }
                 }
               }
             }
