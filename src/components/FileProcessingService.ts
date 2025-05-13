@@ -380,12 +380,77 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       console.log(`Duplicate found: ${poleId}`);
     }
     
-    // As per reference doc: For Katapult Pole Spec, use proposed_pole_spec or pole_spec
+    // As per reference doc and updated requirements:
+    // 1. Try to use proposed_pole_spec or pole_spec first
+    // 2. If not found or empty, fall back to combining pole_height and pole_class
     const poleSpecOptions = [
-      'proposed_pole_spec', 'Proposed Pole Spec', 'pole_spec', 'Pole Spec'
+      'proposed_pole_spec', 'Proposed Pole Spec', 'PROPOSED_POLE_SPEC',
+      'pole_spec', 'Pole Spec', 'POLE_SPEC'
     ];
     
-    const poleSpec = getFieldValue(row, poleSpecOptions, 'pole spec') || "";
+    let poleSpec = getFieldValue(row, poleSpecOptions, 'pole spec') || "";
+    
+    // If pole_spec wasn't found or is empty, try to build it from height and class
+    if (!poleSpec || poleSpec.trim() === "") {
+      console.log(`Row ${index}: No pole_spec found, trying height and class fallback`);
+      
+      // Define options for pole height field
+      const poleHeightOptions = [
+        'pole_height', 'Pole Height', 'POLE_HEIGHT',
+        'height', 'Height', 'HEIGHT',
+        'pole height'
+      ];
+      
+      // Define options for pole class field
+      const poleClassOptions = [
+        'pole_class', 'Pole Class', 'POLE_CLASS', 
+        'class', 'Class', 'CLASS',
+        'pole class'
+      ];
+      
+      // Try to get height and class values
+      const poleHeight = getFieldValue(row, poleHeightOptions, 'pole height');
+      const poleClass = getFieldValue(row, poleClassOptions, 'pole class');
+      
+      console.log(`Row ${index}: Fallback values - height: ${poleHeight}, class: ${poleClass}`);
+      
+      // If we have both height and class, combine them in the format "{height}-{class}"
+      if (poleHeight && poleClass) {
+        // Parse height to ensure it's a clean number (in case it comes with units like "ft")
+        let heightValue = poleHeight;
+        if (typeof heightValue === 'string') {
+          const heightMatch = heightValue.match(/(\d+)/);
+          if (heightMatch) {
+            heightValue = heightMatch[1];
+          }
+        }
+        
+        // Parse class to clean it if needed
+        let classValue = poleClass;
+        if (typeof classValue === 'string') {
+          const classMatch = classValue.match(/(\w+)/);
+          if (classMatch) {
+            classValue = classMatch[1];
+          }
+        }
+        
+        // Combine height and class in SPIDAcalc format: "45-3" (height-class)
+        poleSpec = `${heightValue}-${classValue}`;
+        console.log(`Row ${index}: Created pole spec from height and class: ${poleSpec}`);
+      } else {
+        // If we only have one of the values, use what we have
+        if (poleHeight) {
+          poleSpec = `${poleHeight}`;
+          console.log(`Row ${index}: Using only height for pole spec: ${poleSpec}`);
+        } else if (poleClass) {
+          poleSpec = `${poleClass}`;
+          console.log(`Row ${index}: Using only class for pole spec: ${poleSpec}`);
+        } else {
+          poleSpec = "Unknown";
+          console.log(`Row ${index}: No pole spec information found, using "Unknown"`);
+        }
+      }
+    }
     
     // Direct access to the critical columns with special handling for % in column names
     // As per reference doc: For Katapult Existing Loading %, use existing_capacity_%
