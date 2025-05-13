@@ -387,104 +387,138 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       'pole_spec', 'Pole Spec', 'POLE_SPEC'
     ];
     
-    const poleHeightOptions = [
-      'pole_height', 'Pole Height', 'POLE_HEIGHT',
-      'height', 'Height', 'HEIGHT',
-      'pole height'
-    ];
+const poleHeightOptions = [
+  'pole_height', 'Pole Height', 'POLE_HEIGHT', 'PoleHeight',
+  'height', 'Height', 'HEIGHT', 
+  'pole height', 'pole_h', 'pole h',
+  'poleheight', 'pole-height', 'h', 'H',
+  'height_ft', 'heightft', 'height_feet', 'heightfeet',
+  'length', 'Length', 'LENGTH', 'pole_length'
+];
+
+const poleClassOptions = [
+  'pole_class', 'Pole Class', 'POLE_CLASS', 'PoleClass',
+  'class', 'Class', 'CLASS', 'class_of_pole',
+  'pole class', 'pole_c', 'pole c',
+  'poleclass', 'pole-class', 'c', 'C',
+  'class_number', 'class_no', 'classno', 'classnumber',
+  'strength', 'strength_class'
+];
+
+const poleSpeciesOptions = [
+  'pole_species', 'Pole Species', 'POLE_SPECIES', 'PoleSpecies',
+  'species', 'Species', 'SPECIES', 
+  'wood_species', 'Wood Species', 'WOOD_SPECIES', 'WoodSpecies',
+  'species_type', 'SpeciesType', 'species_name',
+  'wood type', 'Wood Type', 'wood', 'Wood', 'WOOD',
+  'timber_type', 'timber', 'material', 'Material',
+  'wood_type', 'wood kind', 'pole_material',
+  'pole_wood_type', 'pole_wood', 'wood_kind',
+  'birthmark_brand::pole_species*', 'birthmark_brand::pole_species', 
+  'birthmark_brand::species', 'pole_species*'
+];
     
-    const poleClassOptions = [
-      'pole_class', 'Pole Class', 'POLE_CLASS', 
-      'class', 'Class', 'CLASS',
-      'pole class'
-    ];
-    
-    const poleSpeciesOptions = [
-      'pole_species', 'Pole Species', 'POLE_SPECIES',
-      'species', 'Species', 'SPECIES',
-      'wood_species', 'Wood Species', 'WOOD_SPECIES',
-      'wood type', 'Wood Type', 'wood'
-    ];
-    
-    // Try to get values for height, class, and species
+    // Get the height, class and species directly from the Excel file
     const poleHeight = getFieldValue(row, poleHeightOptions, 'pole height');
     const poleClass = getFieldValue(row, poleClassOptions, 'pole class');
     const poleSpecies = getFieldValue(row, poleSpeciesOptions, 'pole species');
     
-    console.log(`Row ${index}: Pole details - Height: ${poleHeight}, Class: ${poleClass}, Species: ${poleSpecies}`);
+    console.log(`Row ${index}: Raw pole details - Height: ${poleHeight}, Class: ${poleClass}, Species: ${poleSpecies}`);
     
-    // First check if there's a predefined pole spec
-    let poleSpec = getFieldValue(row, poleSpecOptions, 'pole spec') || "";
+    // Always build from individual components to ensure proper formatting
+    let poleSpec = "";
     
-    // If pole_spec wasn't found or is empty, build it from height, class, and species
-    if (!poleSpec || poleSpec.trim() === "") {
-      console.log(`Row ${index}: No pole_spec found, building from components`);
+    console.log(`Row ${index}: Building pole spec from components`);
       
-      // Parse and clean height value
-      let heightValue = '';
-      if (poleHeight) {
-        if (typeof poleHeight === 'string') {
-          const heightMatch = poleHeight.match(/(\d+)/);
-          heightValue = heightMatch ? heightMatch[1] : poleHeight;
-        } else {
-          heightValue = poleHeight.toString();
-        }
+    // Parse and clean height value
+    let heightValue = '';
+    if (poleHeight) {
+      if (typeof poleHeight === 'string') {
+        const heightMatch = poleHeight.match(/(\d+)/);
+        heightValue = heightMatch ? heightMatch[1] : poleHeight;
+      } else {
+        heightValue = poleHeight.toString();
       }
-      
-      // Parse and clean class value
-      let classValue = '';
-      if (poleClass) {
-        if (typeof poleClass === 'string') {
-          const classMatch = poleClass.match(/(\w+)/);
-          classValue = classMatch ? classMatch[1] : poleClass;
-        } else {
-          classValue = poleClass.toString();
-        }
+    }
+    
+    // Parse and clean class value
+    let classValue = '';
+    if (poleClass) {
+      if (typeof poleClass === 'string') {
+        const classMatch = poleClass.match(/(\w+)/);
+        classValue = classMatch ? classMatch[1] : poleClass;
+      } else {
+        classValue = poleClass.toString();
       }
-      
-      // Clean and format species value
-      let speciesValue = '';
-      if (poleSpecies) {
-        if (typeof poleSpecies === 'string') {
-          // Clean up species text (trim whitespace, proper capitalization)
-          speciesValue = poleSpecies.trim();
-          
+    }
+    
+    // Clean and format species value
+    let speciesValue = '';
+    if (poleSpecies) {
+      if (typeof poleSpecies === 'string') {
+        // Clean up species text (trim whitespace)
+        speciesValue = poleSpecies.trim();
+        
+        // Handle species abbreviations
+        if (speciesValue.toUpperCase() === 'SPC' || speciesValue.toUpperCase() === 'SP') {
+          speciesValue = 'Southern Pine';
+          console.log(`Row ${index}: Expanded species abbreviation '${poleSpecies}' to 'Southern Pine'`);
+        } else {
           // Capitalize first letter of each word in species
           speciesValue = speciesValue
             .split(' ')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
             .join(' ');
-        } else {
-          speciesValue = poleSpecies.toString();
         }
-      }
-      
-      // Format based on available components: "[height]-[class] [species]"
-      if (heightValue && classValue) {
-        poleSpec = `${heightValue}-${classValue}`;
-        if (speciesValue) {
-          poleSpec += ` ${speciesValue}`;
-        }
-        console.log(`Row ${index}: Created full pole spec: ${poleSpec}`);
-      } else if (heightValue) {
-        poleSpec = heightValue;
-        if (speciesValue) {
-          poleSpec += ` ${speciesValue}`;
-        }
-        console.log(`Row ${index}: Created pole spec with height and species: ${poleSpec}`);
-      } else if (classValue) {
-        poleSpec = classValue;
-        if (speciesValue) {
-          poleSpec += ` ${speciesValue}`;
-        }
-        console.log(`Row ${index}: Created pole spec with class and species: ${poleSpec}`);
-      } else if (speciesValue) {
-        poleSpec = speciesValue;
-        console.log(`Row ${index}: Created pole spec with only species: ${poleSpec}`);
       } else {
-        poleSpec = "Unknown";
-        console.log(`Row ${index}: No pole spec information found, using "Unknown"`);
+        speciesValue = poleSpecies.toString();
+        
+        // Handle numeric species codes if they exist
+        if (speciesValue === 'SPC' || speciesValue === 'SP') {
+          speciesValue = 'Southern Pine';
+          console.log(`Row ${index}: Expanded species code '${poleSpecies}' to 'Southern Pine'`);
+        }
       }
+    }
+    
+    // Format based on available components: "[height]-[class] [species]"
+    if (heightValue && classValue) {
+      // Primary format: "[height]-[class]"
+      poleSpec = `${heightValue}-${classValue}`;
+      
+      // If species is available, append it after the height-class
+      if (speciesValue) {
+        poleSpec += ` ${speciesValue}`;
+      }
+      console.log(`Row ${index}: Created full pole spec: ${poleSpec}`);
+    } 
+    // If only height is available
+    else if (heightValue) {
+      poleSpec = heightValue;
+      // Still append species if available
+      if (speciesValue) {
+        poleSpec += ` ${speciesValue}`;
+      }
+      console.log(`Row ${index}: Created pole spec with height${speciesValue ? ' and species' : ''}: ${poleSpec}`);
+    } 
+    // If only class is available
+    else if (classValue) {
+      poleSpec = classValue;
+      // Still append species if available
+      if (speciesValue) {
+        poleSpec += ` ${speciesValue}`;
+      }
+      console.log(`Row ${index}: Created pole spec with class${speciesValue ? ' and species' : ''}: ${poleSpec}`);
+    } 
+    // If only species is available
+    else if (speciesValue) {
+      poleSpec = speciesValue;
+      console.log(`Row ${index}: Created pole spec with only species: ${poleSpec}`);
+    } 
+    // Fallback if no components available
+    else {
+      poleSpec = "Unknown";
+      console.log(`Row ${index}: No pole spec information found, using "Unknown"`);
     }
     
     // Direct access to the critical columns with special handling for % in column names
@@ -636,7 +670,8 @@ interface SpidaPole {
 
 /**
  * Extract SPIDAcalc pole specification from design
- * Updated to format as "[height]-[size] [species]" (e.g., "45-3 Southern Pine")
+ * Formats as "[height]-[class] [species]" (e.g., "45-3 Southern Pine")
+ * If species is not found, returns just "[height]-[class]"
  */
 const extractPoleSpecification = (design: any): string => {
   if (!design?.structure?.pole) {
@@ -661,6 +696,7 @@ const extractPoleSpecification = (design: any): string => {
   // Get the species
   let species = "";
   
+  // Try multiple sources to find species
   // First try to get species directly from pole.clientItem
   if (pole.clientItem?.species) {
     species = pole.clientItem.species;
@@ -677,22 +713,38 @@ const extractPoleSpecification = (design: any): string => {
     }
   }
   
-  // Format as "[height]-[size] [species]"
+  // Clean up species value if found
+  if (species) {
+    species = species.trim();
+    // Capitalize first letter of each word in species
+    species = species
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+  
+  // Format pole specification based on available information
+  // Primary format: "[height]-[class] [species]"
   if (heightInFeet > 0 && classOfPole !== "Unknown") {
-    return species 
-      ? `${heightInFeet}-${classOfPole} ${species}` 
-      : `${heightInFeet}-${classOfPole}`;
+    // Create the [height]-[class] format
+    const baseSpec = `${heightInFeet}-${classOfPole}`;
+    
+    // Append species if available
+    return species ? `${baseSpec} ${species}` : baseSpec;
   }
   
   // Fallbacks for partial information
+  // If only height is available
   if (heightInFeet > 0) {
-    return `${heightInFeet}${species ? ` ${species}` : ''}`;
+    return species ? `${heightInFeet} ${species}` : `${heightInFeet}`;
   }
   
+  // If only class is available
   if (classOfPole !== "Unknown") {
-    return `${classOfPole}${species ? ` ${species}` : ''}`;
+    return species ? `${classOfPole} ${species}` : classOfPole;
   }
   
+  // If only species is available
   if (species) {
     return species;
   }
@@ -1085,7 +1137,20 @@ const generateComparisonData = (
     }
   });
   
+  // Process each Katapult pole to ensure species abbreviations are expanded
   katapultPoles.forEach(pole => {
+    // Final check for species abbreviations in poleSpec
+    const poleSpec = pole.poleSpec;
+    if (poleSpec) {
+      // Expand any remaining SP or SPC to Southern Pine
+      if (/\bSP\b/i.test(poleSpec) || /\bSPC\b/i.test(poleSpec)) {
+        pole.poleSpec = poleSpec
+          .replace(/\bSP\b/i, "Southern Pine")
+          .replace(/\bSPC\b/i, "Southern Pine");
+        console.log(`Expanded species abbreviation in final output for pole ${pole.poleId}: ${pole.poleSpec}`);
+      }
+    }
+    
     if (pole.numericId) {
       katapultNumericMap.set(pole.numericId, pole);
     }

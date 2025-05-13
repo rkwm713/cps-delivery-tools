@@ -21,19 +21,25 @@ export const PoleTable = () => {
   const { data, updatePole } = useCoverSheet();
   const [copiedRowIndex, setCopiedRowIndex] = useState<number | null>(null);
 
+  // Format station ID by removing "1-" prefix
+  const formatStationId = (stationId: string): string => {
+    return stationId.replace(/^1-/, '');
+  };
+
   const handleCopyRow = async (index: number) => {
     const pole = data.poles[index];
     
     // Format the row for copying in a way that works with Word tables
-    // Word needs tab-separated values for table columns
-    const rowText = `${pole.id}\t${formatLoadingValue(pole.existing)}\t${formatLoadingValue(pole.final)}\t${pole.notes}`;
+    // Including all 5 columns: #, Station, Existing %, Final %, Description of Work
+    const formattedStationId = formatStationId(pole.id);
+    const rowText = `${index + 1}\t${formattedStationId}\t${formatLoadingValue(pole.existing)}\t${formatLoadingValue(pole.final)}\t${pole.notes}`;
     
     const success = await copyText(rowText);
     if (success) {
       setCopiedRowIndex(index);
       toast({
         title: "Copied to clipboard",
-        description: `Row data for pole ${pole.id} has been copied to clipboard (Word table format)`
+        description: `Row data for pole ${formattedStationId} has been copied to clipboard with all columns`
       });
       
       // Reset the copied indication after 2 seconds
@@ -49,18 +55,20 @@ export const PoleTable = () => {
 
   const formatLoadingValue = (value: number | null): string => {
     if (value === null) return "—";
-    return value.toFixed(2);
+    return `${value.toFixed(2)}%`;
   };
 
   const handleCopyWholeTable = async () => {
     // Create properly formatted table data for Word
-    // Add header row
-    const headerRow = ["Station", "Existing %", "Final %", "Description of Work"].join('\t');
+    // Add header row with all 5 columns
+    const headerRow = ["#", "Station", "Existing %", "Final %", "Description of Work"].join('\t');
     
-    // Format each data row with tabs between columns
-    const dataRows = data.poles.map(pole => 
-      `${pole.id}\t${formatLoadingValue(pole.existing)}\t${formatLoadingValue(pole.final)}\t${pole.notes}`
-    );
+    // Format each data row with tabs between columns - 5 column format
+    // Remove "1-" prefix from station IDs
+    const dataRows = data.poles.map((pole, index) => {
+      const formattedStationId = formatStationId(pole.id);
+      return `${index + 1}\t${formattedStationId}\t${formatLoadingValue(pole.existing)}\t${formatLoadingValue(pole.final)}\t${pole.notes}`;
+    });
     
     // Join rows with newlines for proper table row separation in Word
     const tableContent = [headerRow, ...dataRows].join('\n');
@@ -69,7 +77,7 @@ export const PoleTable = () => {
     if (success) {
       toast({
         title: "Copied to clipboard",
-        description: "Table copied in Word-compatible format - paste directly into Word"
+        description: "Complete table copied in 5-column format - paste directly into Word"
       });
     } else {
       toast({
