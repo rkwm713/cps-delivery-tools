@@ -14,8 +14,10 @@ export const CoverSheetHeaderPanel = () => {
   const { data, updateData } = useCoverSheet();
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const handleCopyField = async (field: keyof typeof data, value: string) => {
-    const success = await copyText(value);
+  const handleCopyField = async (field: keyof typeof data, value: string, label?: string) => {
+    // If a label is provided, format with that label in bold
+    const textToCopy = label ? `**${label}:** ${value}` : value;
+    const success = await copyText(textToCopy);
     if (success) {
       setCopiedField(field);
       toast({
@@ -35,14 +37,17 @@ export const CoverSheetHeaderPanel = () => {
   };
 
   const handleCopyAllHeaderFields = async () => {
+    // Format the job number to always start with "2-2025-TS"
+    const formattedJobNumber = `2-2025-TS${data.jobNumber}`;
+    
     const headerText = [
-      `Job Number: ${data.jobNumber}`,
-      `Client: ${data.client}`,
-      `Date: ${data.date}`,
-      `Location of Poles: ${data.location}`,
-      `City: ${data.city}`,
-      `Project Engineer: ${data.engineer}`,
-      `Comments: ${data.comments}`
+      `**Client:** ${data.client}`,
+      `**Job:** ${formattedJobNumber}`,
+      `**Date:** ${data.date}`,
+      `**Location of Poles:** ${data.location}`,
+      `**City:** ${data.city}`,
+      `**Project Engineer:** ${data.engineer}`,
+      `**Comments:** ${data.comments}`
     ].join('\n');
     
     const success = await copyText(headerText);
@@ -82,7 +87,7 @@ export const CoverSheetHeaderPanel = () => {
                 variant="outline" 
                 size="icon"
                 className={`mt-6 ${copiedField === 'jobNumber' ? 'bg-green-100 text-green-600' : ''}`}
-                onClick={() => handleCopyField('jobNumber', data.jobNumber)}
+                onClick={() => handleCopyField('jobNumber', `2-2025-TS${data.jobNumber}`, 'Job')}
               >
                 <Clipboard className="h-4 w-4" />
               </Button>
@@ -102,7 +107,7 @@ export const CoverSheetHeaderPanel = () => {
                 variant="outline" 
                 size="icon"
                 className={`mt-6 ${copiedField === 'client' ? 'bg-green-100 text-green-600' : ''}`}
-                onClick={() => handleCopyField('client', data.client)}
+                onClick={() => handleCopyField('client', data.client, 'Client')}
               >
                 <Clipboard className="h-4 w-4" />
               </Button>
@@ -122,7 +127,7 @@ export const CoverSheetHeaderPanel = () => {
                 variant="outline" 
                 size="icon"
                 className={`mt-6 ${copiedField === 'date' ? 'bg-green-100 text-green-600' : ''}`}
-                onClick={() => handleCopyField('date', data.date)}
+                onClick={() => handleCopyField('date', data.date, 'Date')}
               >
                 <Clipboard className="h-4 w-4" />
               </Button>
@@ -142,7 +147,7 @@ export const CoverSheetHeaderPanel = () => {
                 variant="outline" 
                 size="icon"
                 className={`mt-6 ${copiedField === 'location' ? 'bg-green-100 text-green-600' : ''}`}
-                onClick={() => handleCopyField('location', data.location)}
+                onClick={() => handleCopyField('location', data.location, 'Location of Poles')}
               >
                 <Clipboard className="h-4 w-4" />
               </Button>
@@ -162,7 +167,7 @@ export const CoverSheetHeaderPanel = () => {
                 variant="outline" 
                 size="icon"
                 className={`mt-6 ${copiedField === 'city' ? 'bg-green-100 text-green-600' : ''}`}
-                onClick={() => handleCopyField('city', data.city)}
+                onClick={() => handleCopyField('city', data.city, 'City')}
               >
                 <Clipboard className="h-4 w-4" />
               </Button>
@@ -182,7 +187,7 @@ export const CoverSheetHeaderPanel = () => {
                 variant="outline" 
                 size="icon"
                 className={`mt-6 ${copiedField === 'engineer' ? 'bg-green-100 text-green-600' : ''}`}
-                onClick={() => handleCopyField('engineer', data.engineer)}
+                onClick={() => handleCopyField('engineer', data.engineer, 'Project Engineer')}
               >
                 <Clipboard className="h-4 w-4" />
               </Button>
@@ -203,7 +208,7 @@ export const CoverSheetHeaderPanel = () => {
               variant="outline" 
               size="icon"
               className={`mt-6 ${copiedField === 'comments' ? 'bg-green-100 text-green-600' : ''}`}
-              onClick={() => handleCopyField('comments', data.comments)}
+              onClick={() => handleCopyField('comments', data.comments, 'Comments')}
             >
               <Clipboard className="h-4 w-4" />
             </Button>
