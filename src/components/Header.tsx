@@ -7,19 +7,13 @@ export const Header = () => {
     <header className="bg-white shadow-md py-4">
       <div className="container mx-auto px-4 flex justify-between items-center">
         <div className="flex items-center">
-          <svg 
-            viewBox="0 0 24 24" 
-            className="h-8 w-8 text-blue-600 mr-2" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2"
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-          >
-            <path d="M12 2v20M2 12h20M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z" />
-          </svg>
+          <img 
+            src="/CPSlogo.png" 
+            alt="CPS Logo" 
+            className="h-8 mr-2" 
+          />
           <h1 className="text-2xl font-bold text-gray-800">
-            Pole Spec Comparison Tool
+            CPS Delivery Tool
           </h1>
         </div>
         <div className="flex space-x-2">

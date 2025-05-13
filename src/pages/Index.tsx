@@ -11,6 +11,9 @@ import type { VerificationResult } from "@/components/FileProcessingService";
 
 export interface ProcessedRow {
   poleNumber: string;
+  scidNumber: string;
+  spidaPoleNumber: string;
+  katapultPoleNumber: string;
   spidaPoleSpec: string;
   katapultPoleSpec: string;
   spidaExistingLoading: number;
@@ -87,16 +90,19 @@ const Index = () => {
 
     // Create CSV content
     const headers = [
-      "Pole Number", "SPIDA Pole Spec", "Katapult Pole Spec", 
-      "SPIDAcalc Existing Loading %", "Katapult Existing loading %", 
-      "SPIDAcalc Final loading %", "Katapult Final Loading %",
+      "SCID #", "Katapult Pole Number", "Katapult Pole Number",
+      "Katapult Pole Spec", "Katapult Pole Spec", 
+      "Katapult Existing Loading %", "Katapult Existing loading %", 
+      "Katapult Final loading %", "Katapult Final Loading %",
       "Existing Δ", "Final Δ"
     ];
     
     const csvRows = [
       headers.join(','),
       ...currentData.map(row => [
-        row.poleNumber,
+        row.scidNumber,
+        row.spidaPoleNumber,
+        row.katapultPoleNumber,
         row.spidaPoleSpec,
         row.katapultPoleSpec,
         row.spidaExistingLoading,
@@ -147,7 +153,7 @@ const Index = () => {
               
               {verification.missingInSpida.length > 0 && (
                 <div className="mb-3">
-                  <h4 className="font-semibold text-amber-700">Poles missing in SPIDA ({verification.missingInSpida.length}):</h4>
+                  <h4 className="font-semibold text-amber-700">Poles missing in Katapult ({verification.missingInSpida.length}):</h4>
                   <p className="text-sm text-amber-700 mt-1">
                     {verification.missingInSpida.slice(0, 10).join(", ")}
                     {verification.missingInSpida.length > 10 && "..."}
@@ -231,7 +237,7 @@ const Index = () => {
       
       <footer className="py-6 bg-gray-100 border-t">
         <div className="container mx-auto px-4 text-center text-sm text-gray-500">
-          Pole Specification Comparison Tool &copy; {new Date().getFullYear()}
+          CPS Delivery Tool &copy; {new Date().getFullYear()}
         </div>
       </footer>
     </div>

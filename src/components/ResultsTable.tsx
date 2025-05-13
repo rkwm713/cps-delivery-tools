@@ -27,7 +27,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
   const filteredRows = searchQuery
     ? rows.filter(
         (row) =>
+          row.scidNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
           row.poleNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          row.spidaPoleNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          row.katapultPoleNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
           row.spidaPoleSpec.toLowerCase().includes(searchQuery.toLowerCase()) ||
           row.katapultPoleSpec.toLowerCase().includes(searchQuery.toLowerCase())
       )
@@ -167,14 +170,34 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[180px]">
+              <TableHead className="w-[100px]">
                 <Button
                   variant="ghost"
                   className="flex items-center p-0 h-auto font-semibold text-left"
-                  onClick={() => requestSort("poleNumber")}
+                  onClick={() => requestSort("scidNumber")}
                 >
-                  Pole Number
-                  <span className="ml-2">{getSortIcon("poleNumber")}</span>
+                  SCID #
+                  <span className="ml-2">{getSortIcon("scidNumber")}</span>
+                </Button>
+              </TableHead>
+              <TableHead className="w-[150px]">
+                <Button
+                  variant="ghost"
+                  className="flex items-center p-0 h-auto font-semibold text-left"
+                  onClick={() => requestSort("spidaPoleNumber")}
+                >
+                  SPIDAcalc Pole #
+                  <span className="ml-2">{getSortIcon("spidaPoleNumber")}</span>
+                </Button>
+              </TableHead>
+              <TableHead className="w-[150px]">
+                <Button
+                  variant="ghost"
+                  className="flex items-center p-0 h-auto font-semibold text-left"
+                  onClick={() => requestSort("katapultPoleNumber")}
+                >
+                  Katapult Pole #
+                  <span className="ml-2">{getSortIcon("katapultPoleNumber")}</span>
                 </Button>
               </TableHead>
               <TableHead>
@@ -244,7 +267,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
             {sortedRows.length > 0 ? (
               sortedRows.map((row, index) => (
                 <TableRow key={index} className={row.hasIssue ? "bg-red-50" : ""}>
-                  <TableCell className="font-medium">{row.poleNumber}</TableCell>
+                  <TableCell className="font-medium">{row.scidNumber}</TableCell>
+                  <TableCell>{row.spidaPoleNumber}</TableCell>
+                  <TableCell>{row.katapultPoleNumber}</TableCell>
                   <TableCell className={getCellClass(row, 'spec')}>{row.spidaPoleSpec}</TableCell>
                   <TableCell className={getCellClass(row, 'spec')}>{row.katapultPoleSpec}</TableCell>
                   <TableCell className={getCellClass(row, 'existing')}>
@@ -274,7 +299,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={10} className="h-24 text-center">
                   No results found
                 </TableCell>
               </TableRow>
