@@ -380,75 +380,109 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       console.log(`Duplicate found: ${poleId}`);
     }
     
-    // As per reference doc and updated requirements:
-    // 1. Try to use proposed_pole_spec or pole_spec first
-    // 2. If not found or empty, fall back to combining pole_height and pole_class
+    // Define options for pole spec, height, class and species fields
     const poleSpecOptions = [
       'proposed_pole_spec', 'Proposed Pole Spec', 'PROPOSED_POLE_SPEC',
       'pole_spec', 'Pole Spec', 'POLE_SPEC'
     ];
     
+    const poleHeightOptions = [
+      'pole_height', 'Pole Height', 'POLE_HEIGHT',
+      'height', 'Height', 'HEIGHT',
+      'pole height'
+    ];
+    
+    const poleClassOptions = [
+      'pole_class', 'Pole Class', 'POLE_CLASS', 
+      'class', 'Class', 'CLASS',
+      'pole class'
+    ];
+    
+    const poleSpeciesOptions = [
+      'pole_species', 'Pole Species', 'POLE_SPECIES',
+      'species', 'Species', 'SPECIES',
+      'wood_species', 'Wood Species', 'WOOD_SPECIES',
+      'wood type', 'Wood Type', 'wood'
+    ];
+    
+    // Try to get values for height, class, and species
+    const poleHeight = getFieldValue(row, poleHeightOptions, 'pole height');
+    const poleClass = getFieldValue(row, poleClassOptions, 'pole class');
+    const poleSpecies = getFieldValue(row, poleSpeciesOptions, 'pole species');
+    
+    console.log(`Row ${index}: Pole details - Height: ${poleHeight}, Class: ${poleClass}, Species: ${poleSpecies}`);
+    
+    // First check if there's a predefined pole spec
     let poleSpec = getFieldValue(row, poleSpecOptions, 'pole spec') || "";
     
-    // If pole_spec wasn't found or is empty, try to build it from height and class
+    // If pole_spec wasn't found or is empty, build it from height, class, and species
     if (!poleSpec || poleSpec.trim() === "") {
-      console.log(`Row ${index}: No pole_spec found, trying height and class fallback`);
+      console.log(`Row ${index}: No pole_spec found, building from components`);
       
-      // Define options for pole height field
-      const poleHeightOptions = [
-        'pole_height', 'Pole Height', 'POLE_HEIGHT',
-        'height', 'Height', 'HEIGHT',
-        'pole height'
-      ];
-      
-      // Define options for pole class field
-      const poleClassOptions = [
-        'pole_class', 'Pole Class', 'POLE_CLASS', 
-        'class', 'Class', 'CLASS',
-        'pole class'
-      ];
-      
-      // Try to get height and class values
-      const poleHeight = getFieldValue(row, poleHeightOptions, 'pole height');
-      const poleClass = getFieldValue(row, poleClassOptions, 'pole class');
-      
-      console.log(`Row ${index}: Fallback values - height: ${poleHeight}, class: ${poleClass}`);
-      
-      // If we have both height and class, combine them in the format "{height}-{class}"
-      if (poleHeight && poleClass) {
-        // Parse height to ensure it's a clean number (in case it comes with units like "ft")
-        let heightValue = poleHeight;
-        if (typeof heightValue === 'string') {
-          const heightMatch = heightValue.match(/(\d+)/);
-          if (heightMatch) {
-            heightValue = heightMatch[1];
-          }
-        }
-        
-        // Parse class to clean it if needed
-        let classValue = poleClass;
-        if (typeof classValue === 'string') {
-          const classMatch = classValue.match(/(\w+)/);
-          if (classMatch) {
-            classValue = classMatch[1];
-          }
-        }
-        
-        // Combine height and class in SPIDAcalc format: "45-3" (height-class)
-        poleSpec = `${heightValue}-${classValue}`;
-        console.log(`Row ${index}: Created pole spec from height and class: ${poleSpec}`);
-      } else {
-        // If we only have one of the values, use what we have
-        if (poleHeight) {
-          poleSpec = `${poleHeight}`;
-          console.log(`Row ${index}: Using only height for pole spec: ${poleSpec}`);
-        } else if (poleClass) {
-          poleSpec = `${poleClass}`;
-          console.log(`Row ${index}: Using only class for pole spec: ${poleSpec}`);
+      // Parse and clean height value
+      let heightValue = '';
+      if (poleHeight) {
+        if (typeof poleHeight === 'string') {
+          const heightMatch = poleHeight.match(/(\d+)/);
+          heightValue = heightMatch ? heightMatch[1] : poleHeight;
         } else {
-          poleSpec = "Unknown";
-          console.log(`Row ${index}: No pole spec information found, using "Unknown"`);
+          heightValue = poleHeight.toString();
         }
+      }
+      
+      // Parse and clean class value
+      let classValue = '';
+      if (poleClass) {
+        if (typeof poleClass === 'string') {
+          const classMatch = poleClass.match(/(\w+)/);
+          classValue = classMatch ? classMatch[1] : poleClass;
+        } else {
+          classValue = poleClass.toString();
+        }
+      }
+      
+      // Clean and format species value
+      let speciesValue = '';
+      if (poleSpecies) {
+        if (typeof poleSpecies === 'string') {
+          // Clean up species text (trim whitespace, proper capitalization)
+          speciesValue = poleSpecies.trim();
+          
+          // Capitalize first letter of each word in species
+          speciesValue = speciesValue
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+        } else {
+          speciesValue = poleSpecies.toString();
+        }
+      }
+      
+      // Format based on available components to match SPIDAcalc format: "height-class species"
+      if (heightValue && classValue) {
+        poleSpec = `${heightValue}-${classValue}`;
+        if (speciesValue) {
+          poleSpec += ` ${speciesValue}`;
+        }
+        console.log(`Row ${index}: Created full pole spec: ${poleSpec}`);
+      } else if (heightValue) {
+        poleSpec = heightValue;
+        if (speciesValue) {
+          poleSpec += ` ${speciesValue}`;
+        }
+        console.log(`Row ${index}: Created pole spec with height and species: ${poleSpec}`);
+      } else if (classValue) {
+        poleSpec = classValue;
+        if (speciesValue) {
+          poleSpec += ` ${speciesValue}`;
+        }
+        console.log(`Row ${index}: Created pole spec with class and species: ${poleSpec}`);
+      } else if (speciesValue) {
+        poleSpec = speciesValue;
+        console.log(`Row ${index}: Created pole spec with only species: ${poleSpec}`);
+      } else {
+        poleSpec = "Unknown";
+        console.log(`Row ${index}: No pole spec information found, using "Unknown"`);
       }
     }
     
