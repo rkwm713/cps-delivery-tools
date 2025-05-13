@@ -21,9 +21,9 @@ export const PoleTable = () => {
   const { data, updatePole } = useCoverSheet();
   const [copiedRowIndex, setCopiedRowIndex] = useState<number | null>(null);
 
-  // Format station ID by removing "1-" prefix
+  // Format station ID by removing any "x-" prefix (where x is any digit)
   const formatStationId = (stationId: string): string => {
-    return stationId.replace(/^1-/, '');
+    return stationId.replace(/^\d+-/, '');
   };
 
   const handleCopyRow = async (index: number) => {
@@ -123,7 +123,7 @@ export const PoleTable = () => {
                   className={hasIssue(pole) ? "bg-red-50" : ""}
                 >
                   <TableCell>{index + 1}</TableCell>
-                  <TableCell>{pole.id}</TableCell>
+                  <TableCell>{formatStationId(pole.id)}</TableCell>
                   <TableCell className={isHighLoading(pole.existing) ? "text-red-600 font-medium" : ""}>
                     {formatLoadingValue(pole.existing)}
                   </TableCell>

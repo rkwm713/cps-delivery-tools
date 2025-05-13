@@ -112,9 +112,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
     );
   };
 
-  // Format loading percent values
+  // Format loading percent values - reduced to 1 decimal place for compactness
   const formatPercent = (value: number) => {
-    return value !== undefined ? `${value.toFixed(2)}%` : "N/A";
+    return value !== undefined ? `${value.toFixed(1)}%` : "N/A";
   };
 
   // Determine if a cell should be highlighted for issues
@@ -166,8 +166,8 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
         </div>
       </div>
 
-      <div className="rounded-md border shadow-sm overflow-hidden">
-        <Table>
+      <div className="rounded-md border shadow-sm overflow-x-auto">
+        <Table className="whitespace-nowrap text-sm">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[100px]">
@@ -186,7 +186,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
                   className="flex items-center p-0 h-auto font-semibold text-left"
                   onClick={() => requestSort("spidaPoleNumber")}
                 >
-                  SPIDAcalc Pole #
+                  SPIDA Pole #
                   <span className="ml-2">{getSortIcon("spidaPoleNumber")}</span>
                 </Button>
               </TableHead>
@@ -200,7 +200,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
                   <span className="ml-2">{getSortIcon("katapultPoleNumber")}</span>
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-[130px]">
                 <Button
                   variant="ghost"
                   className="flex items-center p-0 h-auto font-semibold text-left"
@@ -210,7 +210,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
                   <span className="ml-2">{getSortIcon("spidaPoleSpec")}</span>
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-[130px]">
                 <Button
                   variant="ghost"
                   className="flex items-center p-0 h-auto font-semibold text-left"
@@ -220,47 +220,47 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ rows }) => {
                   <span className="ml-2">{getSortIcon("katapultPoleSpec")}</span>
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-[100px]">
                 <Button
                   variant="ghost"
                   className="flex items-center p-0 h-auto font-semibold text-left"
                   onClick={() => requestSort("spidaExistingLoading")}
                 >
-                  SPIDAcalc Existing Loading %
+                  SPIDA Existing %
                   <span className="ml-2">{getSortIcon("spidaExistingLoading")}</span>
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-[110px]">
                 <Button
                   variant="ghost"
                   className="flex items-center p-0 h-auto font-semibold text-left"
                   onClick={() => requestSort("katapultExistingLoading")}
                 >
-                  Katapult Existing Loading %
+                  Katapult Existing %
                   <span className="ml-2">{getSortIcon("katapultExistingLoading")}</span>
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-[100px]">
                 <Button
                   variant="ghost"
                   className="flex items-center p-0 h-auto font-semibold text-left"
                   onClick={() => requestSort("spidaFinalLoading")}
                 >
-                  SPIDAcalc Final Loading %
+                  SPIDA Final %
                   <span className="ml-2">{getSortIcon("spidaFinalLoading")}</span>
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-[110px]">
                 <Button
                   variant="ghost"
                   className="flex items-center p-0 h-auto font-semibold text-left"
                   onClick={() => requestSort("katapultFinalLoading")}
                 >
-                  Katapult Final Loading %
+                  Katapult Final %
                   <span className="ml-2">{getSortIcon("katapultFinalLoading")}</span>
                 </Button>
               </TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="w-[80px]">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

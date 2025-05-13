@@ -300,11 +300,12 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
       console.log(`Row ${index} raw data:`, row);
     }
     
-    // Check if node_type is "pole" - only process rows with pole node type
+    // Check if node_type is "pole" or "Power" - process rows with either node type
     const nodeType = row.node_type || row.NODE_TYPE || row['Node Type'] || row['node type'];
-    if (nodeType !== 'pole' && nodeType !== 'POLE' && nodeType !== 'Pole') {
+    if (nodeType !== 'pole' && nodeType !== 'POLE' && nodeType !== 'Pole' && 
+        nodeType !== 'Power' && nodeType !== 'POWER' && nodeType !== 'power') {
       if (index < 10) {
-        console.log(`Row ${index} skipped: node_type is not 'pole' (actual value: ${nodeType})`);
+        console.log(`Row ${index} skipped: node_type is not 'pole' or 'Power' (actual value: ${nodeType})`);
       }
       return;
     }
@@ -608,17 +609,27 @@ const poleSpeciesOptions = [
     // Extract numeric ID from pole number for matching
     let numericId = '';
     if (poleNumber) {
-      // Extract digits from the pole number
-      const digits = poleNumber.toString().replace(/\D/g, '');
-      
-      // Also check for PL pattern
-      const plMatch = poleNumber.toString().match(/PL(\d+)/i);
-      if (plMatch && plMatch[1]) {
-        numericId = plMatch[1]; // Use the digits after PL
-        console.log(`Row ${index}: Extracted numeric ID from PL pattern: ${numericId}`);
-      } else if (digits) {
-        numericId = digits; // Use all digits
-        console.log(`Row ${index}: Extracted numeric ID from digits: ${numericId}`);
+      // First priority: Check for hyphen pattern and extract digits after it (e.g., "146-455194" → "455194")
+      const hyphenMatch = poleNumber.toString().match(/-(\d+)$/);
+      if (hyphenMatch && hyphenMatch[1]) {
+        numericId = hyphenMatch[1]; // Use the digits after the hyphen
+        console.log(`Row ${index}: Extracted numeric ID from after hyphen: ${numericId}`);
+      }
+      // Second priority: Check for PL pattern
+      else {
+        const plMatch = poleNumber.toString().match(/PL(\d+)/i);
+        if (plMatch && plMatch[1]) {
+          numericId = plMatch[1]; // Use the digits after PL
+          console.log(`Row ${index}: Extracted numeric ID from PL pattern: ${numericId}`);
+        } 
+        // Last resort: use all digits
+        else {
+          const digits = poleNumber.toString().replace(/\D/g, '');
+          if (digits) {
+            numericId = digits;
+            console.log(`Row ${index}: Extracted numeric ID from all digits: ${numericId}`);
+          }
+        }
       }
     }
     
@@ -663,6 +674,7 @@ interface SpidaPole {
   poleId: string;
   normalizedPoleId: string;
   numericId: string;  // Added for numeric-only matching
+  locationNumber: string; // Added to store the location number (SCID) from SPIDAcalc
   poleSpec: string;
   existingLoading: number;
   finalLoading: number;
@@ -1008,16 +1020,39 @@ const extractSpidaPoles = (jsonData: any): Map<string, SpidaPole> => {
             console.log(`Pole ${poleId}: No designs found`);
           }
           
+          // Extract location number (SCID) from pole ID - part before the hyphen
+          // Example: From "1-PL410620" extract "1" as the location number
+          let locationNumber = '';
+          const locationMatch = poleId.match(/^(\d+)-/);
+          if (locationMatch && locationMatch[1]) {
+            locationNumber = locationMatch[1];
+            console.log(`Pole ${poleId}: Extracted location number: ${locationNumber}`);
+          } else {
+            // If no location number found, use default
+            locationNumber = '0';
+            console.log(`Pole ${poleId}: No location number found, using default: ${locationNumber}`);
+          }
+          
           // Extract numeric ID from pole ID for matching
           let numericId = '';
-          const plMatch = poleId.match(/PL(\d+)/i);
-          if (plMatch && plMatch[1]) {
-            numericId = plMatch[1]; // Extract digits after PL
-            console.log(`Pole ${poleId}: Extracted numeric ID: ${numericId}`);
-          } else {
-            // Fallback to all digits
-            numericId = poleId.replace(/\D/g, '');
-            console.log(`Pole ${poleId}: Extracted numeric ID from all digits: ${numericId}`);
+          // First priority: Check for hyphen pattern and extract digits after it (e.g., "2-455194" → "455194")
+          const hyphenMatch = poleId.match(/-(\d+)$/);
+          if (hyphenMatch && hyphenMatch[1]) {
+            numericId = hyphenMatch[1]; // Use the digits after the hyphen
+            console.log(`Pole ${poleId}: Extracted numeric ID from after hyphen: ${numericId}`);
+          }
+          // Second priority: Check for PL pattern
+          else {
+            const plMatch = poleId.match(/PL(\d+)/i);
+            if (plMatch && plMatch[1]) {
+              numericId = plMatch[1]; // Use the digits after PL
+              console.log(`Pole ${poleId}: Extracted numeric ID from PL pattern: ${numericId}`);
+            } 
+            // Last resort: use all digits
+            else {
+              numericId = poleId.replace(/\D/g, '');
+              console.log(`Pole ${poleId}: Extracted numeric ID from all digits: ${numericId}`);
+            }
           }
           
           // Store pole data
@@ -1025,6 +1060,7 @@ const extractSpidaPoles = (jsonData: any): Map<string, SpidaPole> => {
             poleId,
             normalizedPoleId,
             numericId,
+            locationNumber, // Add the location number from SPIDA
             poleSpec,
             existingLoading,
             finalLoading
@@ -1163,8 +1199,36 @@ const generateComparisonData = (
     // Try to find matching SPIDA pole by numeric ID
     const spida = katapult.numericId ? spidaNumericMap.get(katapult.numericId) : undefined;
     
-    // Extract SCID number from the pole ID
-    const scidNumber = katapult.scid || katapult.poleId.split('-')[0] || "";
+    // Extract SCID number from the SPIDA pole ID first if available, as it has the correct SCID
+    let scidNumber = "";
+    
+    if (spida) {
+      // If we have a SPIDA match, use its location number as the SCID
+      if (spida.locationNumber) {
+        scidNumber = spida.locationNumber;
+        console.log(`Using SPIDA location number for SCID: ${scidNumber} for pole ${katapult.poleId}`);
+      } else {
+        // Extract from SPIDA pole ID if available
+        const spidaLocationMatch = spida.poleId.match(/^(\d+)-/);
+        if (spidaLocationMatch && spidaLocationMatch[1]) {
+          scidNumber = spidaLocationMatch[1];
+          console.log(`Extracted SCID ${scidNumber} from SPIDA pole ID: ${spida.poleId}`);
+        }
+      }
+    }
+    
+    // Fallback to Katapult pole ID if no SPIDA match or couldn't extract from SPIDA
+    if (!scidNumber) {
+      const katapultLocationMatch = katapult.poleId.match(/^(\d+)-/);
+      if (katapultLocationMatch && katapultLocationMatch[1]) {
+        scidNumber = katapultLocationMatch[1];
+        console.log(`Fallback: Using Katapult location number as SCID: ${scidNumber}`);
+      } else {
+        // Last resort fallback
+        scidNumber = katapult.scid || katapult.poleId.split('-')[0] || "";
+        console.log(`Last resort fallback to SCID: ${scidNumber}`);
+      }
+    }
     
     let row: ProcessedRow = {
       poleNumber: katapult.poleId,
@@ -1195,8 +1259,8 @@ const generateComparisonData = (
     if (spida.numericId && !katapultNumericMap.has(spida.numericId)) {
       console.log(`No Katapult match for SPIDA pole: ${spida.poleId} (numeric ID: ${spida.numericId})`);
       
-      // Extract SCID number from the SPIDA pole ID
-      const scidNumber = spida.poleId.split('-')[0] || "";
+      // Use the location number as SCID from SPIDA
+      const scidNumber = spida.locationNumber || spida.poleId.split('-')[0] || "";
       
       const row: ProcessedRow = {
         poleNumber: spida.poleId,
@@ -1215,8 +1279,15 @@ const generateComparisonData = (
     }
   });
   
-  // Sort results by pole number for better readability
-  return results.sort((a, b) => a.poleNumber.localeCompare(b.poleNumber));
+  // Sort results by SCID numerically (from smallest to largest)
+  return results.sort((a, b) => {
+    // Extract numeric values from SCID
+    const scidA = parseInt(a.scidNumber.replace(/\D/g, '') || '0', 10);
+    const scidB = parseInt(b.scidNumber.replace(/\D/g, '') || '0', 10);
+    
+    // Sort by numeric SCID value
+    return scidA - scidB;
+  });
 };
 
 /**
