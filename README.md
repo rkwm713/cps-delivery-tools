@@ -36,9 +36,6 @@ Welcome to the documentation for the Pole Sync & Compare Tool. This directory co
   - Data matching troubleshooting
   - Export and formatting troubleshooting
 
-## Quick Start
-
-For a quick overview of the application, refer to the [main README](../README.md) in the project root.
 
 ## Contributing to Documentation
 
