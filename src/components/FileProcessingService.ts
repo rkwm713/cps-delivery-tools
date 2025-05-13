@@ -1,3 +1,4 @@
+
 import type { ProcessedRow } from "@/pages/Index";
 import * as XLSX from 'xlsx';
 
@@ -458,7 +459,7 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
         }
       }
       
-      // Format based on available components to match SPIDAcalc format: "height-class species"
+      // Format based on available components: "[height]-[class] [species]"
       if (heightValue && classValue) {
         poleSpec = `${heightValue}-${classValue}`;
         if (speciesValue) {
