@@ -1,4 +1,3 @@
-
 import type { ProcessedRow } from "@/pages/Index";
 import * as XLSX from 'xlsx';
 
@@ -234,42 +233,21 @@ const extractKatapultPoles = (excelData: any[]): Map<string, KatapultPole> => {
     console.log("Available columns in Katapult data:", Object.keys(excelData[0]).join(", "));
   }
   
-  // First, try to find the node_type column to filter for poles
-  const possibleNodeTypeColumns = ['node_type', 'Node Type', 'NODE_TYPE', 'nodetype', 'Type', 'type', 'pole_type', 'Pole Type'];
-  let nodeTypeColumn = '';
-  
-  // Find the actual node type column name
-  for (const colName of possibleNodeTypeColumns) {
-    if (excelData[0][colName] !== undefined) {
-      nodeTypeColumn = colName;
-      console.log(`Found node type column: '${nodeTypeColumn}'`);
-      break;
+  // CHANGED: Instead of filtering by node_type column, we'll check each row for any field containing "pole"
+  const poleData = excelData.filter(row => {
+    // Check if any field in this row contains the string "pole" (case-insensitive)
+    for (const key in row) {
+      const value = row[key];
+      if (value && 
+         (typeof value === 'string' && value.toLowerCase().includes('pole'))) {
+        console.log(`Found row with pole reference in field '${key}': ${value}`);
+        return true;
+      }
     }
-    
-    // Try case-insensitive match
-    const match = Object.keys(excelData[0]).find(key => key.toLowerCase() === colName.toLowerCase());
-    if (match) {
-      nodeTypeColumn = match;
-      console.log(`Found node type column (case-insensitive): '${nodeTypeColumn}'`);
-      break;
-    }
-  }
+    return false;
+  });
   
-  if (!nodeTypeColumn) {
-    console.warn("Could not find node_type column. Trying to process all rows.");
-    // If we can't find a node type column, we'll still try to process all rows
-  }
-  
-  // Filter data to only include rows where node_type is "pole"
-  const poleData = nodeTypeColumn ? 
-    excelData.filter(row => {
-      const nodeType = row[nodeTypeColumn];
-      const isPole = nodeType && nodeType.toString().toLowerCase() === "pole";
-      return isPole;
-    }) : 
-    excelData; // If we can't filter by node_type, use all rows
-  
-  console.log(`Found ${poleData.length} potential poles in Katapult data after filtering`);
+  console.log(`Found ${poleData.length} potential poles in Katapult data after searching for "pole" in any field`);
   
   // Sample the first row to understand the data structure
   if (poleData.length > 0) {
