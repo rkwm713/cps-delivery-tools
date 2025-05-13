@@ -1,56 +1,45 @@
-# Welcome to your Lovable project
+# Pole Sync & Compare Tool
 
-## Project info
+## Project Overview
 
-**URL**: https://lovable.dev/projects/29d5addc-9aa5-437a-84c5-e621a3f8032f
+This application provides utilities for pole data management and comparison, specifically designed for utility pole structural analysis workflows. It consists of two main tools:
 
-## How can I edit this code?
+1. **Pole Comparison Tool**: Compare pole data between Katapult and SPIDAcalc files to identify discrepancies and ensure consistency.
+2. **Cover Sheet Tool**: Generate formatted cover sheets from SPIDAcalc files, extracting key project information and pole data for documentation purposes.
 
-There are several ways of editing your application.
+## Installation and Setup
 
-**Use Lovable**
+### Prerequisites
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/29d5addc-9aa5-437a-84c5-e621a3f8032f) and start prompting.
+- Node.js & npm - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Setup Instructions
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navigate to the project directory
+cd pole-sync-compare
 
-# Step 3: Install the necessary dependencies.
+# Install dependencies
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Documentation
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+For detailed information about how data is processed and mapped in each tool, refer to the [Documentation Index](./docs/README.md) or the specific guides below:
 
-**Use GitHub Codespaces**
+- [Pole Comparison Tool Documentation](./docs/pole-comparison-tool.md)
+- [Cover Sheet Tool Documentation](./docs/cover-sheet-tool.md)
+- [Data Flow Documentation](./docs/data-flow.md) - Visual diagrams of data processing flow
+- [File Structure Documentation](./docs/file-structure.md) - Overview of project organization
+- [Troubleshooting Guide](./docs/troubleshooting.md) - Solutions for common issues
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
+## Technologies Used
 
 This project is built with:
 
@@ -60,14 +49,17 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
-## How can I deploy this project?
+## Deployment
 
-Simply open [Lovable](https://lovable.dev/projects/29d5addc-9aa5-437a-84c5-e621a3f8032f) and click on Share -> Publish.
+You can deploy this project using Lovable:
 
-## Can I connect a custom domain to my Lovable project?
+1. Open [Lovable](https://lovable.dev/projects/29d5addc-9aa5-437a-84c5-e621a3f8032f)
+2. Click on Share -> Publish
 
-Yes, you can!
+## Custom Domain Setup
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+To connect a custom domain:
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+1. Navigate to Project > Settings > Domains
+2. Click Connect Domain
+3. Follow the instructions in the [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide) guide
